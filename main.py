@@ -1,0 +1,361 @@
+from typing import NamedTuple
+from pathlib import Path
+import dolfin
+import ufl_legacy as ufl
+import pint
+import json
+import meshio
+import matplotlib.pyplot as plt
+import pandas as pd
+import beat
+import beat.single_cell
+import gotranx
+
+here = Path(__file__).parent
+
+
+class Geometry(NamedTuple):
+    mesh: dolfin.Mesh
+    fiber: dolfin.Function
+    endo_epi: dolfin.Function
+    ffun: dolfin.MeshFunction
+    markers: dict[str, int]
+
+
+ureg = pint.UnitRegistry()
+
+
+def define_stimulus(mesh, chi, time, ffun, markers, mesh_unit="mm"):
+    duration = 2.0  # ms
+    A = 500.0 * ureg("uA/cm**2")
+    amplitude = amplitude = (A / chi).to(f"uA/{mesh_unit}").magnitude
+    I_s = dolfin.Expression(
+        "time >= start ? (time <= (duration + start) ? amplitude : 0.0) : 0.0",
+        time=time,
+        start=0.0,
+        duration=duration,
+        amplitude=amplitude,
+        degree=0,
+    )
+
+    subdomain_data = dolfin.MeshFunction("size_t", mesh, 2)
+    subdomain_data.set_all(0)
+    marker = 1
+    subdomain_data.array()[ffun.array() == markers["ENDO"]] = 1
+
+    ds = dolfin.Measure("ds", domain=mesh, subdomain_data=subdomain_data)(marker)
+    return beat.base_model.Stimulus(dz=ds, expr=I_s)
+
+
+def define_conductivity_tensor(chi, f0):
+    # Conductivities as defined by page 4339 of Niederer benchmark
+    sigma_il = 0.17 * ureg("mS/mm")
+    sigma_it = 0.019 * ureg("mS/mm")
+    sigma_el = 0.62 * ureg("mS/mm")
+    sigma_et = 0.24 * ureg("mS/mm")
+
+    # Compute monodomain approximation by taking harmonic mean in each
+    # direction of intracellular and extracellular part
+    def harmonic_mean(a, b):
+        return a * b / (a + b)
+
+    sigma_l = harmonic_mean(sigma_il, sigma_el)
+    sigma_t = harmonic_mean(sigma_it, sigma_et)
+
+    # Scale conducitivites
+    s_l = (sigma_l / chi).to("uA/mV").magnitude
+    s_t = (sigma_t / chi).to("uA/mV").magnitude
+
+    # Define conductivity tensor
+    return s_l * ufl.outer(f0, f0) + s_t * (ufl.Identity(3) - ufl.outer(f0, f0))
+
+
+def convert_data():
+    mesh_file = "CI2B_DEF12_17endo-42epi_LABELED.vtk"
+    vtk_mesh = meshio.read(mesh_file)
+    data_file = "data.xdmf"
+    if not Path(data_file).is_file():
+        vtk_mesh.write("data.xdmf")
+
+    mesh = dolfin.Mesh()
+    with dolfin.XDMFFile(data_file) as infile:
+        infile.read(mesh)
+
+    V = dolfin.FunctionSpace(mesh, "CG", 1)
+
+    W = dolfin.VectorFunctionSpace(mesh, "DG", 0)
+
+    endo_epi = dolfin.Function(V)
+    endo_epi.set_allow_extrapolation(True)
+
+    endo_epi.vector().set_local(
+        vtk_mesh.point_data["EndoToEpi"][dolfin.dof_to_vertex_map(V), 0]
+    )
+    with dolfin.XDMFFile("endo_epi.xdmf") as xdmf:
+        xdmf.write_checkpoint(
+            endo_epi, "endo_epi", 0.0, dolfin.XDMFFile.Encoding.HDF5, False
+        )
+
+    ffun = dolfin.MeshFunction("size_t", mesh, 2)
+
+    for facet in dolfin.facets(mesh):
+        ffun[facet] = round(endo_epi(facet.midpoint()))
+
+    with dolfin.XDMFFile("ffun.xdmf") as xdmf:
+        xdmf.write(ffun)
+
+    fiber_data = vtk_mesh.cell_data["FibreOrientation"][0]
+    fiber = dolfin.Function(W)
+    fiber_array = fiber.vector().get_local()
+    fiber_array[::3] = fiber_data[:, 0]
+    fiber_array[1::3] = fiber_data[:, 1]
+    fiber_array[2::3] = fiber_data[:, 2]
+    fiber.vector().set_local(fiber_array)
+    with dolfin.XDMFFile("fiber.xdmf") as xdmf:
+        xdmf.write_checkpoint(fiber, "fiber", 0.0, dolfin.XDMFFile.Encoding.HDF5, False)
+
+
+def get_lead_positions() -> dict[str, tuple[float, float, float]]:
+    def name2lead(name):
+        if "LA" in name:
+            return "LA"
+        if "RA" in name:
+            return "RA"
+        if "LL" in name:
+            return "LL"
+        raise ValueError(f"Unknown lead name: {name}")
+
+    text = Path("limb_position.txt").read_text()
+    leads = {}
+    for line in text.splitlines():
+        pos, name = line.strip().split("!")
+        leads[name2lead(name)] = tuple(float(p) for p in pos.strip().split(" "))
+
+    return leads
+
+
+def load_data() -> Geometry:
+    files = ["data.xdmf", "fiber.xdmf", "endo_epi.xdmf", "ffun.xdmf"]
+    if not all(Path(file).is_file() for file in files):
+        breakpoint()
+        convert_data()
+
+    mesh = dolfin.Mesh()
+    with dolfin.XDMFFile("data.xdmf") as infile:
+        infile.read(mesh)
+
+    V = dolfin.FunctionSpace(mesh, "CG", 1)
+    W = dolfin.VectorFunctionSpace(mesh, "DG", 0)
+    endo_epi = dolfin.Function(V)
+    with dolfin.XDMFFile("endo_epi.xdmf") as xdmf:
+        xdmf.read_checkpoint(endo_epi, "endo_epi", 0)
+    fiber = dolfin.Function(W)
+    with dolfin.XDMFFile("fiber.xdmf") as xdmf:
+        xdmf.read_checkpoint(fiber, "fiber", 0)
+
+    ffun = dolfin.MeshFunction("size_t", mesh, 2)
+    with dolfin.XDMFFile("ffun.xdmf") as xdmf:
+        xdmf.read(ffun)
+
+    markers = {
+        "ENDO": 0,
+        "EPI": 2,
+    }
+
+    return Geometry(
+        mesh=mesh, fiber=fiber, endo_epi=endo_epi, ffun=ffun, markers=markers
+    )
+
+
+def save_ecg(
+    t, V: dolfin.Function, ecg_file: Path, leads: dict[str, tuple[float, float, float]]
+):
+    if ecg_file.is_file():
+        data = json.loads(ecg_file.read_text())
+    else:
+        data = []
+
+    mesh = V.function_space().mesh()
+
+    LA = beat.ecg.ecg_recovery(v=V, mesh=mesh, sigma_b=1.0, point=leads["LA"])
+    RA = beat.ecg.ecg_recovery(v=V, mesh=mesh, sigma_b=1.0, point=leads["RA"])
+    LL = beat.ecg.ecg_recovery(v=V, mesh=mesh, sigma_b=1.0, point=leads["LL"])
+    I = LA - RA
+    II = LL - RA
+    III = LL - LA
+
+    data.append(
+        {
+            "time": t,
+            "I": I,
+            "II": II,
+            "III": III,
+            "LA": LA,
+            "RA": RA,
+            "LL": LL,
+        }
+    )
+    ecg_file.write_text(json.dumps(data, indent=2))
+
+
+def plot_ecg():
+    data = json.loads(Path("extracellular_potential.json").read_text())
+    df = pd.DataFrame(data)
+
+    fig, ax = plt.subplots(3, 1)
+    ax[0].plot(df["time"].to_numpy(), df["I"].to_numpy())
+    ax[1].plot(df["time"].to_numpy(), df["II"].to_numpy())
+    ax[2].plot(df["time"].to_numpy(), df["III"].to_numpy())
+    ax[0].set_title("I")
+    ax[1].set_title("II")
+    ax[2].set_title("III")
+    fig.savefig("ecg.png")
+
+
+def main():
+    data = load_data()
+    ode = gotranx.load_ode(here / "ORdmm_Land.ode")
+    code = gotranx.cli.gotran2py.get_code(
+        ode, scheme=[gotranx.schemes.Scheme.forward_generalized_rush_larsen]
+    )
+    model = {}
+    exec(code, model)
+
+    mesh_unit = "mm"
+    V = dolfin.FunctionSpace(data.mesh, "Lagrange", 1)
+
+    init_states = {
+        0: beat.single_cell.get_steady_state(
+            fun=model["forward_generalized_rush_larsen"],
+            init_states=model["init_state_values"](),
+            parameters=model["init_parameter_values"](celltype=0),
+            outdir=Path("steady_states") / "mid",
+            BCL=1000,
+            nbeats=200,
+            track_indices=[model["state_index"]("v"), model["state_index"]("cai")],
+            dt=0.05,
+        ),
+        1: beat.single_cell.get_steady_state(
+            fun=model["forward_generalized_rush_larsen"],
+            init_states=model["init_state_values"](),
+            parameters=model["init_parameter_values"](celltype=2),
+            outdir=Path("steady_states") / "endo",
+            BCL=1000,
+            nbeats=200,
+            track_indices=[
+                model["state_index"]("v"),
+                model["state_index"]("cai"),
+                model["state_index"]("nai"),
+            ],
+            dt=0.05,
+        ),
+        2: beat.single_cell.get_steady_state(
+            fun=model["forward_generalized_rush_larsen"],
+            init_states=model["init_state_values"](),
+            parameters=model["init_parameter_values"](celltype=1),
+            outdir=Path("steady_states") / "epi",
+            BCL=1000,
+            nbeats=200,
+            track_indices=[model["state_index"]("v"), model["state_index"]("cai")],
+            dt=0.05,
+        ),
+    }
+
+    init_states = {
+        0: model["init_state_values"](),
+        1: model["init_state_values"](),
+        2: model["init_state_values"](),
+    }
+    # endo = 0, epi = 1, M = 2
+    parameters = {
+        0: model["init_parameter_values"](amp=0.0, celltype=0),
+        1: model["init_parameter_values"](amp=0.0, celltype=2),
+        2: model["init_parameter_values"](amp=0.0, celltype=1),
+    }
+    fun = {
+        0: model["forward_generalized_rush_larsen"],
+        1: model["forward_generalized_rush_larsen"],
+        2: model["forward_generalized_rush_larsen"],
+    }
+    v_index = {
+        0: model["state_index"]("v"),
+        1: model["state_index"]("v"),
+        2: model["state_index"]("v"),
+    }
+
+    # Surface to volume ratio
+    chi = 140.0 * ureg("mm**-1")
+    # Membrane capacitance
+    C_m = 0.01 * ureg("uF/mm**2")
+
+    time = dolfin.Constant(0.0)
+    I_s = define_stimulus(
+        mesh=data.mesh,
+        chi=chi,
+        mesh_unit=mesh_unit,
+        time=time,
+        ffun=data.ffun,
+        markers=data.markers,
+    )
+
+    M = define_conductivity_tensor(chi=chi, f0=data.fiber)
+
+    params = {"preconditioner": "sor", "use_custom_preconditioner": False}
+    pde = beat.MonodomainModel(
+        time=time,
+        C_m=C_m.to(f"uF/{mesh_unit}**2").magnitude,
+        mesh=data.mesh,
+        M=M,
+        I_s=I_s,
+        params=params,
+    )
+
+    ode = beat.odesolver.DolfinMultiODESolver(
+        v_ode=dolfin.Function(V),
+        v_pde=pde.state,
+        markers=data.endo_epi,
+        num_states={i: len(s) for i, s in init_states.items()},
+        fun=fun,
+        init_states=init_states,
+        parameters=parameters,
+        v_index=v_index,
+    )
+
+    T = 500
+    # Change to 500 to simulate the full cardiac cycle
+    # T = 500
+    t = 0.0
+    dt = 0.05
+    solver = beat.MonodomainSplittingSolver(pde=pde, ode=ode)
+
+    fname = "state.xdmf"
+    if Path(fname).is_file():
+        Path(fname).unlink()
+        Path(fname).with_suffix(".h5").unlink()
+
+    leads = get_lead_positions()
+
+    ecg_file = Path("extracellular_potential.json")
+
+    i = 0
+    while t < T + 1e-12:
+        if i % 20 == 0:
+            v = solver.pde.state.vector().get_local()
+            print(f"Solve for {t=:.2f}, {v.max() =}, {v.min() = }")
+            with dolfin.XDMFFile(dolfin.MPI.comm_world, fname) as xdmf:
+                xdmf.write_checkpoint(
+                    solver.pde.state,
+                    "V",
+                    float(t),
+                    dolfin.XDMFFile.Encoding.HDF5,
+                    True,
+                )
+            save_ecg(t, solver.pde.state, ecg_file, leads)
+
+        solver.step((t, t + dt))
+        i += 1
+        t += dt
+
+
+if __name__ == "__main__":
+    main()
