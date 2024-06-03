@@ -1,7 +1,6 @@
 from typing import NamedTuple
 from pathlib import Path
 import dolfin
-import ufl_legacy as ufl
 import pint
 import json
 import meshio
@@ -23,51 +22,6 @@ class Geometry(NamedTuple):
 
 
 ureg = pint.UnitRegistry()
-
-
-def define_stimulus(mesh, chi, time, ffun, markers, mesh_unit="mm"):
-    duration = 2.0  # ms
-    A = 500.0 * ureg("uA/cm**2")
-    amplitude = amplitude = (A / chi).to(f"uA/{mesh_unit}").magnitude
-    I_s = dolfin.Expression(
-        "time >= start ? (time <= (duration + start) ? amplitude : 0.0) : 0.0",
-        time=time,
-        start=0.0,
-        duration=duration,
-        amplitude=amplitude,
-        degree=0,
-    )
-
-    subdomain_data = dolfin.MeshFunction("size_t", mesh, 2)
-    subdomain_data.set_all(0)
-    marker = 1
-    subdomain_data.array()[ffun.array() == markers["ENDO"]] = 1
-
-    ds = dolfin.Measure("ds", domain=mesh, subdomain_data=subdomain_data)(marker)
-    return beat.base_model.Stimulus(dz=ds, expr=I_s)
-
-
-def define_conductivity_tensor(chi, f0):
-    # Conductivities as defined by page 4339 of Niederer benchmark
-    sigma_il = 0.17 * ureg("mS/mm")
-    sigma_it = 0.019 * ureg("mS/mm")
-    sigma_el = 0.62 * ureg("mS/mm")
-    sigma_et = 0.24 * ureg("mS/mm")
-
-    # Compute monodomain approximation by taking harmonic mean in each
-    # direction of intracellular and extracellular part
-    def harmonic_mean(a, b):
-        return a * b / (a + b)
-
-    sigma_l = harmonic_mean(sigma_il, sigma_el)
-    sigma_t = harmonic_mean(sigma_it, sigma_et)
-
-    # Scale conducitivites
-    s_l = (sigma_l / chi).to("uA/mV").magnitude
-    s_t = (sigma_t / chi).to("uA/mV").magnitude
-
-    # Define conductivity tensor
-    return s_l * ufl.outer(f0, f0) + s_t * (ufl.Identity(3) - ufl.outer(f0, f0))
 
 
 def convert_data():
