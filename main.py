@@ -1,3 +1,4 @@
+from enum import IntEnum
 from typing import NamedTuple
 from pathlib import Path
 import dolfin
@@ -166,7 +167,19 @@ def plot_ecg():
     fig.savefig("ecg.png")
 
 
+class Sex(IntEnum):
+    undefined = 0
+    male = 1
+    female = 2
+
+
 def main():
+
+    sex = Sex.male
+
+    outdir = Path(f"results-{sex.name}")
+    outdir.mkdir(exist_ok=True)
+
     data = load_data()
     ode = gotranx.load_ode(here / "ORdmm_Land.ode")
     code = gotranx.cli.gotran2py.get_code(
@@ -182,8 +195,8 @@ def main():
         0: beat.single_cell.get_steady_state(
             fun=model["forward_generalized_rush_larsen"],
             init_states=model["init_state_values"](),
-            parameters=model["init_parameter_values"](celltype=0),
-            outdir=Path("steady_states") / "mid",
+            parameters=model["init_parameter_values"](celltype=0, sex=sex.value),
+            outdir=outdir / "steady-states-0D" / "mid",
             BCL=1000,
             nbeats=200,
             track_indices=[model["state_index"]("v"), model["state_index"]("cai")],
@@ -192,8 +205,8 @@ def main():
         1: beat.single_cell.get_steady_state(
             fun=model["forward_generalized_rush_larsen"],
             init_states=model["init_state_values"](),
-            parameters=model["init_parameter_values"](celltype=2),
-            outdir=Path("steady_states") / "endo",
+            parameters=model["init_parameter_values"](celltype=2, sex=sex.value),
+            outdir=outdir / "steady-states-0D" / "endo",
             BCL=1000,
             nbeats=200,
             track_indices=[
@@ -206,8 +219,8 @@ def main():
         2: beat.single_cell.get_steady_state(
             fun=model["forward_generalized_rush_larsen"],
             init_states=model["init_state_values"](),
-            parameters=model["init_parameter_values"](celltype=1),
-            outdir=Path("steady_states") / "epi",
+            parameters=model["init_parameter_values"](celltype=1, sex=sex.value),
+            outdir=outdir / "steady-states-0D" / "epi",
             BCL=1000,
             nbeats=200,
             track_indices=[model["state_index"]("v"), model["state_index"]("cai")],
@@ -222,9 +235,9 @@ def main():
     }
     # endo = 0, epi = 1, M = 2
     parameters = {
-        0: model["init_parameter_values"](amp=0.0, celltype=0),
-        1: model["init_parameter_values"](amp=0.0, celltype=2),
-        2: model["init_parameter_values"](amp=0.0, celltype=1),
+        0: model["init_parameter_values"](amp=0.0, celltype=0, sex=sex.value),
+        1: model["init_parameter_values"](amp=0.0, celltype=2, sex=sex.value),
+        2: model["init_parameter_values"](amp=0.0, celltype=1, sex=sex.value),
     }
     fun = {
         0: model["forward_generalized_rush_larsen"],
@@ -243,16 +256,20 @@ def main():
     C_m = 0.01 * ureg("uF/mm**2")
 
     time = dolfin.Constant(0.0)
-    I_s = define_stimulus(
+    subdomain_data = dolfin.MeshFunction("size_t", data.mesh, 2)
+    subdomain_data.set_all(0)
+    marker = 1
+    subdomain_data.array()[data.ffun.array() == data.markers["ENDO"]] = marker
+    I_s = beat.stimulation.define_stimulus(
         mesh=data.mesh,
         chi=chi,
         mesh_unit=mesh_unit,
         time=time,
-        ffun=data.ffun,
-        markers=data.markers,
+        subdomain_data=subdomain_data,
+        marker=marker,
     )
 
-    M = define_conductivity_tensor(chi=chi, f0=data.fiber)
+    M = beat.conductivities.define_conductivity_tensor(chi=chi, f0=data.fiber)
 
     params = {"preconditioner": "sor", "use_custom_preconditioner": False}
     pde = beat.MonodomainModel(
@@ -282,10 +299,10 @@ def main():
     dt = 0.05
     solver = beat.MonodomainSplittingSolver(pde=pde, ode=ode)
 
-    fname = "state.xdmf"
-    if Path(fname).is_file():
-        Path(fname).unlink()
-        Path(fname).with_suffix(".h5").unlink()
+    fname = outdir / "state.xdmf"
+    if fname.is_file():
+        fname.unlink()
+        fname.with_suffix(".h5").unlink()
 
     leads = get_lead_positions()
 
@@ -296,7 +313,7 @@ def main():
         if i % 20 == 0:
             v = solver.pde.state.vector().get_local()
             print(f"Solve for {t=:.2f}, {v.max() =}, {v.min() = }")
-            with dolfin.XDMFFile(dolfin.MPI.comm_world, fname) as xdmf:
+            with dolfin.XDMFFile(dolfin.MPI.comm_world, fname.as_posix()) as xdmf:
                 xdmf.write_checkpoint(
                     solver.pde.state,
                     "V",
