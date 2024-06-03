@@ -2,7 +2,7 @@ from enum import IntEnum
 from typing import NamedTuple
 from pathlib import Path
 import dolfin
-import pint
+
 import json
 import meshio
 import matplotlib.pyplot as plt
@@ -10,6 +10,7 @@ import pandas as pd
 import beat
 import beat.single_cell
 import gotranx
+from beat.units import ureg
 
 here = Path(__file__).parent
 
@@ -20,9 +21,6 @@ class Geometry(NamedTuple):
     endo_epi: dolfin.Function
     ffun: dolfin.MeshFunction
     markers: dict[str, int]
-
-
-ureg = pint.UnitRegistry()
 
 
 def convert_data():
@@ -154,7 +152,8 @@ def save_ecg(
 
 
 def plot_ecg():
-    data = json.loads(Path("extracellular_potential.json").read_text())
+    outdir = Path("results-male")
+    data = json.loads((outdir / "extracellular_potential.json").read_text())
     df = pd.DataFrame(data)
 
     fig, ax = plt.subplots(3, 1)
@@ -306,7 +305,7 @@ def main():
 
     leads = get_lead_positions()
 
-    ecg_file = Path("extracellular_potential.json")
+    ecg_file = outdir / "extracellular_potential.json"
 
     i = 0
     while t < T + 1e-12:
