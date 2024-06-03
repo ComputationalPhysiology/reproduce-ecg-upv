@@ -96,7 +96,7 @@ scale_drug_Isack=1.0)
 
 
 parameters("sex",
-    sex=0, # undefined=0, malse=1, female=2
+    sex=ScalarParam(0, unit="1", description="undefined=0, male=1, female=2"),
     scale_sex_GNa_male=1.4378,
     scale_sex_GNaL_male=1.4378,
     scale_sex_Gtos_male=1.3478,
@@ -123,12 +123,12 @@ parameters("sex",
     scale_sex_GpCa_female=1.0027,
     scale_sex_GJup_female=0.9383,
     scale_sex_calm_female=1.4384,
-    scale_sex_GKr_male_EFP_male=1.0,
-    scale_sex_GKr_male_EFP_female=0.98,
-    scale_sex_GKs_male_EFP_male=1.4,
-    scale_sex_GKs_male_EFP_female=1.19,
-    scale_sex_GpCa_male_EFP_male=0.82,
-    scale_sex_GpCa_male_EFP_female=1.0,
+    scale_sex_GKr_EFP_male=1.0,
+    scale_sex_GKr_EFP_female=0.98,
+    scale_sex_GKs_EFP_male=1.4,
+    scale_sex_GKs_EFP_female=1.19,
+    scale_sex_GpCa_EFP_male=0.82,
+    scale_sex_GpCa_EFP_female=1.0
 )
 
 
@@ -720,7 +720,7 @@ lambda_min087 = Conditional(Lt(lambda_min12, 0.87), lambda_min12, 0.87)
 h_lambda_prima = 1+Beta0*(lambda_min12+lambda_min087-1.87)
 h_lambda = Conditional(Gt(h_lambda_prima, 0), h_lambda_prima, 0)
 XU = (1-TmB)-XS-XW
-gammawu = gammaw*abs(Zetaw)
+gammawu = gammaw*Abs(Zetaw)
 zetas1 = Zetas * Conditional(Gt(Zetas, 0.0), 1.0, 0.0)
 zetas2 = (-1.0 - Zetas) * Conditional(Lt(Zetas, -1.0), 1.0,0.0)
 gammasu  = gammas*Conditional(Gt(zetas1, zetas2), zetas1, zetas2)
