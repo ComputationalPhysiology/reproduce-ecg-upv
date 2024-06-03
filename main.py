@@ -180,12 +180,17 @@ def main():
     outdir.mkdir(exist_ok=True)
 
     data = load_data()
-    ode = gotranx.load_ode(here / "ORdmm_Land.ode")
-    code = gotranx.cli.gotran2py.get_code(
-        ode, scheme=[gotranx.schemes.Scheme.forward_generalized_rush_larsen]
-    )
-    model = {}
-    exec(code, model)
+    module_path = Path("ORdmm_Land.py")
+    if not module_path.is_file():
+        ode = gotranx.load_ode(here / "ORdmm_Land.ode")
+        code = gotranx.cli.gotran2py.get_code(
+            ode, scheme=[gotranx.schemes.Scheme.forward_generalized_rush_larsen]
+        )
+        module_path.write_text(code)
+
+    import ORdmm_Land
+
+    model = ORdmm_Land.__dict__
 
     mesh_unit = "mm"
     V = dolfin.FunctionSpace(data.mesh, "Lagrange", 1)
