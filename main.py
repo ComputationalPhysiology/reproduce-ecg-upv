@@ -151,31 +151,13 @@ def save_ecg(
     ecg_file.write_text(json.dumps(data, indent=2))
 
 
-def plot_ecg():
-    outdir = Path("results-male")
-    data = json.loads((outdir / "extracellular_potential.json").read_text())
-    df = pd.DataFrame(data)
-
-    fig, ax = plt.subplots(3, 1)
-    ax[0].plot(df["time"].to_numpy(), df["I"].to_numpy())
-    ax[1].plot(df["time"].to_numpy(), df["II"].to_numpy())
-    ax[2].plot(df["time"].to_numpy(), df["III"].to_numpy())
-    ax[0].set_title("I")
-    ax[1].set_title("II")
-    ax[2].set_title("III")
-    fig.savefig("ecg.png")
-
-
 class Sex(IntEnum):
     undefined = 0
     male = 1
     female = 2
 
 
-def main():
-
-    sex = Sex.male
-
+def main(sex=Sex.male):
     outdir = Path(f"results-{sex.name}")
     outdir.mkdir(exist_ok=True)
 
@@ -296,7 +278,7 @@ def main():
         v_index=v_index,
     )
 
-    T = 500
+    T = 1000
     # Change to 500 to simulate the full cardiac cycle
     # T = 500
     t = 0.0
@@ -333,4 +315,5 @@ def main():
 
 
 if __name__ == "__main__":
-    main()
+    main(sex=Sex.male)
+    main(sex=Sex.female)
