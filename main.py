@@ -2,7 +2,7 @@ from enum import IntEnum
 from typing import NamedTuple
 from pathlib import Path
 import dolfin
-
+import ufl_legacy as ufl
 import json
 import meshio
 import matplotlib.pyplot as plt
@@ -255,7 +255,12 @@ def main(sex=Sex.male):
         marker=marker,
     )
 
-    M = beat.conductivities.define_conductivity_tensor(chi=chi, f0=data.fiber)
+    s_l = (0.24 * ureg("S/m") / chi).to("uA/mv").magnitude
+    s_t = (0.0456 * ureg("S/m") / chi).to("uA/mv").magnitude
+
+    # M = beat.conductivities.define_conductivity_tensor(chi=chi, f0=data.fiber)
+    f0 = data.fiber
+    M = s_l * ufl.outer(f0, f0) + s_t * (ufl.Identity(3) - ufl.outer(f0, f0))
 
     params = {"preconditioner": "sor", "use_custom_preconditioner": False}
     pde = beat.MonodomainModel(
