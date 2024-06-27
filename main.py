@@ -1,8 +1,8 @@
+from enum import IntEnum
 from typing import NamedTuple
 from pathlib import Path
 import dolfin
 import ufl_legacy as ufl
-import pint
 import json
 import meshio
 import matplotlib.pyplot as plt
@@ -10,6 +10,7 @@ import pandas as pd
 import beat
 import beat.single_cell
 import gotranx
+from beat.units import ureg
 
 here = Path(__file__).parent
 
@@ -20,54 +21,6 @@ class Geometry(NamedTuple):
     endo_epi: dolfin.Function
     ffun: dolfin.MeshFunction
     markers: dict[str, int]
-
-
-ureg = pint.UnitRegistry()
-
-
-def define_stimulus(mesh, chi, time, ffun, markers, mesh_unit="mm"):
-    duration = 2.0  # ms
-    A = 500.0 * ureg("uA/cm**2")
-    amplitude = amplitude = (A / chi).to(f"uA/{mesh_unit}").magnitude
-    I_s = dolfin.Expression(
-        "time >= start ? (time <= (duration + start) ? amplitude : 0.0) : 0.0",
-        time=time,
-        start=0.0,
-        duration=duration,
-        amplitude=amplitude,
-        degree=0,
-    )
-
-    subdomain_data = dolfin.MeshFunction("size_t", mesh, 2)
-    subdomain_data.set_all(0)
-    marker = 1
-    subdomain_data.array()[ffun.array() == markers["ENDO"]] = 1
-
-    ds = dolfin.Measure("ds", domain=mesh, subdomain_data=subdomain_data)(marker)
-    return beat.base_model.Stimulus(dz=ds, expr=I_s)
-
-
-def define_conductivity_tensor(chi, f0):
-    # Conductivities as defined by page 4339 of Niederer benchmark
-    sigma_il = 0.17 * ureg("mS/mm")
-    sigma_it = 0.019 * ureg("mS/mm")
-    sigma_el = 0.62 * ureg("mS/mm")
-    sigma_et = 0.24 * ureg("mS/mm")
-
-    # Compute monodomain approximation by taking harmonic mean in each
-    # direction of intracellular and extracellular part
-    def harmonic_mean(a, b):
-        return a * b / (a + b)
-
-    sigma_l = harmonic_mean(sigma_il, sigma_el)
-    sigma_t = harmonic_mean(sigma_it, sigma_et)
-
-    # Scale conducitivites
-    s_l = (sigma_l / chi).to("uA/mV").magnitude
-    s_t = (sigma_t / chi).to("uA/mV").magnitude
-
-    # Define conductivity tensor
-    return s_l * ufl.outer(f0, f0) + s_t * (ufl.Identity(3) - ufl.outer(f0, f0))
 
 
 def convert_data():
@@ -198,28 +151,28 @@ def save_ecg(
     ecg_file.write_text(json.dumps(data, indent=2))
 
 
-def plot_ecg():
-    data = json.loads(Path("extracellular_potential.json").read_text())
-    df = pd.DataFrame(data)
-
-    fig, ax = plt.subplots(3, 1)
-    ax[0].plot(df["time"].to_numpy(), df["I"].to_numpy())
-    ax[1].plot(df["time"].to_numpy(), df["II"].to_numpy())
-    ax[2].plot(df["time"].to_numpy(), df["III"].to_numpy())
-    ax[0].set_title("I")
-    ax[1].set_title("II")
-    ax[2].set_title("III")
-    fig.savefig("ecg.png")
+class Sex(IntEnum):
+    undefined = 0
+    male = 1
+    female = 2
 
 
-def main():
+def main(sex=Sex.male):
+    outdir = Path(f"results-{sex.name}")
+    outdir.mkdir(exist_ok=True)
+
     data = load_data()
-    ode = gotranx.load_ode(here / "ORdmm_Land.ode")
-    code = gotranx.cli.gotran2py.get_code(
-        ode, scheme=[gotranx.schemes.Scheme.forward_generalized_rush_larsen]
-    )
-    model = {}
-    exec(code, model)
+    module_path = Path("ORdmm_Land.py")
+    if not module_path.is_file():
+        ode = gotranx.load_ode(here / "ORdmm_Land.ode")
+        code = gotranx.cli.gotran2py.get_code(
+            ode, scheme=[gotranx.schemes.Scheme.forward_generalized_rush_larsen]
+        )
+        module_path.write_text(code)
+
+    import ORdmm_Land
+
+    model = ORdmm_Land.__dict__
 
     mesh_unit = "mm"
     V = dolfin.FunctionSpace(data.mesh, "Lagrange", 1)
@@ -228,8 +181,8 @@ def main():
         0: beat.single_cell.get_steady_state(
             fun=model["forward_generalized_rush_larsen"],
             init_states=model["init_state_values"](),
-            parameters=model["init_parameter_values"](celltype=0),
-            outdir=Path("steady_states") / "mid",
+            parameters=model["init_parameter_values"](celltype=0, sex=sex.value),
+            outdir=outdir / "steady-states-0D" / "mid",
             BCL=1000,
             nbeats=200,
             track_indices=[model["state_index"]("v"), model["state_index"]("cai")],
@@ -238,8 +191,8 @@ def main():
         1: beat.single_cell.get_steady_state(
             fun=model["forward_generalized_rush_larsen"],
             init_states=model["init_state_values"](),
-            parameters=model["init_parameter_values"](celltype=2),
-            outdir=Path("steady_states") / "endo",
+            parameters=model["init_parameter_values"](celltype=2, sex=sex.value),
+            outdir=outdir / "steady-states-0D" / "endo",
             BCL=1000,
             nbeats=200,
             track_indices=[
@@ -252,8 +205,8 @@ def main():
         2: beat.single_cell.get_steady_state(
             fun=model["forward_generalized_rush_larsen"],
             init_states=model["init_state_values"](),
-            parameters=model["init_parameter_values"](celltype=1),
-            outdir=Path("steady_states") / "epi",
+            parameters=model["init_parameter_values"](celltype=1, sex=sex.value),
+            outdir=outdir / "steady-states-0D" / "epi",
             BCL=1000,
             nbeats=200,
             track_indices=[model["state_index"]("v"), model["state_index"]("cai")],
@@ -268,9 +221,9 @@ def main():
     }
     # endo = 0, epi = 1, M = 2
     parameters = {
-        0: model["init_parameter_values"](amp=0.0, celltype=0),
-        1: model["init_parameter_values"](amp=0.0, celltype=2),
-        2: model["init_parameter_values"](amp=0.0, celltype=1),
+        0: model["init_parameter_values"](amp=0.0, celltype=0, sex=sex.value),
+        1: model["init_parameter_values"](amp=0.0, celltype=2, sex=sex.value),
+        2: model["init_parameter_values"](amp=0.0, celltype=1, sex=sex.value),
     }
     fun = {
         0: model["forward_generalized_rush_larsen"],
@@ -289,16 +242,25 @@ def main():
     C_m = 0.01 * ureg("uF/mm**2")
 
     time = dolfin.Constant(0.0)
-    I_s = define_stimulus(
+    subdomain_data = dolfin.MeshFunction("size_t", data.mesh, 2)
+    subdomain_data.set_all(0)
+    marker = 1
+    subdomain_data.array()[data.ffun.array() == data.markers["ENDO"]] = marker
+    I_s = beat.stimulation.define_stimulus(
         mesh=data.mesh,
         chi=chi,
         mesh_unit=mesh_unit,
         time=time,
-        ffun=data.ffun,
-        markers=data.markers,
+        subdomain_data=subdomain_data,
+        marker=marker,
     )
 
-    M = define_conductivity_tensor(chi=chi, f0=data.fiber)
+    s_l = (0.24 * ureg("S/m") / chi).to("uA/mv").magnitude
+    s_t = (0.0456 * ureg("S/m") / chi).to("uA/mv").magnitude
+
+    # M = beat.conductivities.define_conductivity_tensor(chi=chi, f0=data.fiber)
+    f0 = data.fiber
+    M = s_l * ufl.outer(f0, f0) + s_t * (ufl.Identity(3) - ufl.outer(f0, f0))
 
     params = {"preconditioner": "sor", "use_custom_preconditioner": False}
     pde = beat.MonodomainModel(
@@ -321,28 +283,28 @@ def main():
         v_index=v_index,
     )
 
-    T = 500
+    T = 1000
     # Change to 500 to simulate the full cardiac cycle
     # T = 500
     t = 0.0
     dt = 0.05
     solver = beat.MonodomainSplittingSolver(pde=pde, ode=ode)
 
-    fname = "state.xdmf"
-    if Path(fname).is_file():
-        Path(fname).unlink()
-        Path(fname).with_suffix(".h5").unlink()
+    fname = outdir / "state.xdmf"
+    if fname.is_file():
+        fname.unlink()
+        fname.with_suffix(".h5").unlink()
 
     leads = get_lead_positions()
 
-    ecg_file = Path("extracellular_potential.json")
+    ecg_file = outdir / "extracellular_potential.json"
 
     i = 0
     while t < T + 1e-12:
         if i % 20 == 0:
             v = solver.pde.state.vector().get_local()
             print(f"Solve for {t=:.2f}, {v.max() =}, {v.min() = }")
-            with dolfin.XDMFFile(dolfin.MPI.comm_world, fname) as xdmf:
+            with dolfin.XDMFFile(dolfin.MPI.comm_world, fname.as_posix()) as xdmf:
                 xdmf.write_checkpoint(
                     solver.pde.state,
                     "V",
@@ -358,4 +320,5 @@ def main():
 
 
 if __name__ == "__main__":
-    main()
+    main(sex=Sex.male)
+    main(sex=Sex.female)

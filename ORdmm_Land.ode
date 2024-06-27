@@ -92,6 +92,64 @@ scale_drug_IpCa=1.0,
 scale_drug_Isacns=1.0,
 scale_drug_Isack=1.0)
 
+
+
+
+parameters("sex",
+    sex=ScalarParam(0, unit="1", description="undefined=0, male=1, female=2"),
+    scale_sex_GNa_male=1.4378,
+    scale_sex_GNaL_male=1.4378,
+    scale_sex_Gtos_male=1.3478,
+    scale_sex_GCaL_male=0.8462,
+    scale_sex_GKr_male=0.8638,
+    scale_sex_GKs_male=1.0578,
+    scale_sex_GK1_male=1.0628,
+    scale_sex_GNCX_male=1.0253,
+    scale_sex_PNaK_male=0.3018,
+    scale_sex_GKb_male=0.7998,
+    scale_sex_GpCa_male=0.9706,
+    scale_sex_GJup_male=0.9594,
+    scale_sex_calm_male=1.0496,
+    scale_sex_GNa_female=1.1395,
+    scale_sex_GNaL_female=1.1395,
+    scale_sex_Gtos_female=0.8499,
+    scale_sex_GCaL_female=1.5798,
+    scale_sex_GKr_female=0.9298,
+    scale_sex_GKs_female=0.791,
+    scale_sex_GK1_female=0.5367,
+    scale_sex_GNCX_female=0.8128,
+    scale_sex_PNaK_female=0.2958,
+    scale_sex_GKb_female=1.7695,
+    scale_sex_GpCa_female=1.0027,
+    scale_sex_GJup_female=0.9383,
+    scale_sex_calm_female=1.4384,
+    scale_sex_GKr_EFP_male=1.0,
+    scale_sex_GKr_EFP_female=0.98,
+    scale_sex_GKs_EFP_male=1.4,
+    scale_sex_GKs_EFP_female=1.19,
+    scale_sex_GpCa_EFP_male=0.82,
+    scale_sex_GpCa_EFP_female=1.0
+)
+
+
+expressions("sex")
+scale_sex_GNa = Conditional(Eq(sex, 0), 1.0, Conditional(Eq(sex, 1), scale_sex_GNa_male, scale_sex_GNa_female))
+scale_sex_GNaL = Conditional(Eq(sex, 0), 1.0, Conditional(Eq(sex, 1), scale_sex_GNaL_male, scale_sex_GNaL_female))
+scale_sex_Gtos = Conditional(Eq(sex, 0), 1.0, Conditional(Eq(sex, 1), scale_sex_Gtos_male, scale_sex_Gtos_male))
+scale_sex_GCaL = Conditional(Eq(sex, 0), 1.0, Conditional(Eq(sex, 1), scale_sex_GCaL_male, scale_sex_GCaL_female))
+scale_sex_GKr_EFP = Conditional(Eq(sex, 0), 1.0, Conditional(Eq(sex, 1), scale_sex_GKr_EFP_male, scale_sex_GKr_EFP_female))
+scale_sex_GKr = scale_sex_GKr_EFP * Conditional(Eq(sex, 0), 1.0, Conditional(Eq(sex, 1), scale_sex_GKr_male, scale_sex_GKr_female))
+scale_sex_GKs_EFP = Conditional(Eq(sex, 0), 1.0, Conditional(Eq(sex, 1), scale_sex_GKs_EFP_male, scale_sex_GKs_EFP_female))
+scale_sex_GKs = scale_sex_GKs_EFP * Conditional(Eq(sex, 0), 1.0, Conditional(Eq(sex, 1), scale_sex_GKs_male, scale_sex_GKs_female))
+scale_sex_GK1 = Conditional(Eq(sex, 0), 1.0, Conditional(Eq(sex, 1), scale_sex_GK1_male, scale_sex_GK1_female))
+scale_sex_GNCX = Conditional(Eq(sex, 0), 1.0, Conditional(Eq(sex, 1), scale_sex_GNCX_male, scale_sex_GNCX_female))
+scale_sex_PNaK = Conditional(Eq(sex, 0), 1.0, Conditional(Eq(sex, 1), scale_sex_PNaK_male, scale_sex_PNaK_female))
+scale_sex_GKb = Conditional(Eq(sex, 0), 1.0, Conditional(Eq(sex, 1), scale_sex_GKb_male, scale_sex_GKb_female))
+scale_sex_GpCa_EFP = Conditional(Eq(sex, 0), 1.0, Conditional(Eq(sex, 1), scale_sex_GpCa_EFP_male, scale_sex_GpCa_EFP_female))
+scale_sex_GpCa = scale_sex_GpCa_EFP * Conditional(Eq(sex, 0), 1.0, Conditional(Eq(sex, 1), scale_sex_GpCa_male, scale_sex_GpCa_female))
+scale_sex_GJup = Conditional(Eq(sex, 0), 1.0, Conditional(Eq(sex, 1), scale_sex_GJup_male, scale_sex_GJup_female))
+scale_sex_calm = Conditional(Eq(sex, 0), 1.0, Conditional(Eq(sex, 1), scale_sex_calm_male, scale_sex_calm_female))
+
 ######## EP states
 states("CaMKt",
 CaMKt=0
@@ -189,7 +247,7 @@ PKNa=0.01833)
 expressions("reversal potentials")
 ENa=(R*T/F)*log(nao/nai)
 EK=(R*T/F)*log(ko/ki)
-EKs=(R*T/F)*log((ko+PKNa*nao)/(ki+PKNa*nai))
+EKs=(R*T/F)*log((ko+PKNa*nao)/(ki+PKNa*nai)) 
 vffrt=v*F*F/(R*T)
 vfrt=v*F/(R*T)
 
@@ -218,7 +276,7 @@ hp=Ahf*hf+Ahs*hsp
 tjp=1.46*tj
 djp_dt=(jss-jp)/tjp
 fINap=(1.0/(1.0+KmCaMK/CaMKa))
-INa=GNa*scale_drug_INa*(v-ENa)*m**3.0*((1.0-fINap)*h*j+fINap*hp*jp)
+INa=GNa*scale_sex_GNa*scale_drug_INa*(v-ENa)*m**3.0*((1.0-fINap)*h*j+fINap*hp*jp)
 
 parameters("INaL",
 thL=200.0)
@@ -235,7 +293,7 @@ dhLp_dt=(hLssp-hLp)/thLp
 GNaL_tmp=0.0075*scale_INaL*scale_drug_INaL*scale_HF_GNaL
 GNaL=Conditional(Eq(celltype, 1), GNaL_tmp*0.6, GNaL_tmp)
 fINaLp=(1.0/(1.0+KmCaMK/CaMKa))
-INaL=GNaL*(v-ENa)*mL*((1.0-fINaLp)*hL+fINaLp*hLp)
+INaL=scale_sex_GNaL*GNaL*(v-ENa)*mL*((1.0-fINaLp)*hL+fINaLp*hLp)
 
 parameters("Ito",
 delta_epi_tmp=1.0,
@@ -255,7 +313,7 @@ AiF=1.0/(1.0+exp((v-213.6)/151.2))
 AiS=1.0-AiF
 diF_dt=(iss-iF)/tiF
 diS_dt=(iss-iS)/tiS
-i=AiF*iF+AiS*iS
+i=AiF*iF+AiS*iS*scale_sex_Gtos
 assp=1.0/(1.0+exp((-(v-24.34))/14.82))
 dap_dt=(assp-ap)/ta
 dti_develop=1.354+1.0e-4/(exp((v-167.4)/15.89)+exp(-(v-12.23)/0.2154))
@@ -264,7 +322,7 @@ tiFp=dti_develop*dti_recover*tiF
 tiSp=dti_develop*dti_recover*tiS
 diFp_dt=(iss-iFp)/tiFp
 diSp_dt=(iss-iSp)/tiSp
-ip=AiF*iFp+AiS*iSp
+ip=AiF*iFp+AiS*iSp*scale_sex_Gtos
 fItop=(1.0/(1.0+KmCaMK/CaMKa))
 Ito=Gto*scale_drug_Ito*scale_HF_Gto*(v-EK)*((1.0-fItop)*a*i+fItop*ap*ip)
 
@@ -317,7 +375,7 @@ PCaK=3.574e-4*PCa
 PCaNap=0.00125*PCap
 PCaKp=3.574e-4*PCap
 fICaLp=(1.0/(1.0+KmCaMK/CaMKa))
-ICaL=(1.0-fICaLp)*PCa*PhiCaL*d*(f*(1.0-nca)+jca*fca*nca)+fICaLp*PCap*PhiCaL*d*(fp*(1.0-nca)+jca*fcap*nca)
+ICaL=scale_sex_GCaL*(1.0-fICaLp)*PCa*PhiCaL*d*(f*(1.0-nca)+jca*fca*nca)+fICaLp*PCap*PhiCaL*d*(fp*(1.0-nca)+jca*fcap*nca)
 ICaNa=(1.0-fICaLp)*PCaNa*PhiCaNa*d*(f*(1.0-nca)+jca*fca*nca)+fICaLp*PCaNap*PhiCaNa*d*(fp*(1.0-nca)+jca*fcap*nca)
 ICaK=(1.0-fICaLp)*PCaK*PhiCaK*d*(f*(1.0-nca)+jca*fca*nca)+fICaLp*PCaKp*PhiCaK*d*(fp*(1.0-nca)+jca*fcap*nca)
 
@@ -334,7 +392,7 @@ rkr=1.0/(1.0+exp((v+55.0)/75.0))*1.0/(1.0+exp((v-10.0)/30.0))
 GKr_tmp=0.046*scale_IKr*scale_drug_IKr
 GKr_12 = Conditional(Eq(celltype, 1), GKr_tmp*1.3, GKr_tmp*0.8)
 GKr = Conditional(Eq(celltype, 0), GKr_tmp, GKr_12)
-IKr=GKr*sqrt(ko/5.4)*xr*rkr*(v-EK)
+IKr=scale_sex_GKr*GKr*sqrt(ko/5.4)*xr*rkr*(v-EK)
 
 expressions("IKs")
 xs1ss=1.0/(1.0+exp((-(v+11.60))/8.932))
@@ -346,7 +404,7 @@ dxs2_dt=(xs2ss-xs2)/txs2
 KsCa=1.0+0.6/(1.0+(3.8e-5/cai)**1.4)
 GKs_tmp=0.0034*scale_IKs*scale_drug_IKs
 GKs = Conditional(Eq(celltype, 1), GKs_tmp*1.4, GKs_tmp)
-IKs=GKs*KsCa*xs1*xs2*(v-EKs)
+IKs=scale_sex_GKs*GKs*KsCa*xs1*xs2*(v-EKs)
 xk1ss=1.0/(1.0+exp(-(v+2.5538*ko+144.59)/(1.5692*ko+3.8115)))
 txk1=122.2/(exp((-(v+127.2))/20.36)+exp((v+236.8)/69.33))
 dxk1_dt=(xk1ss-xk1)/txk1
@@ -354,7 +412,7 @@ rk1=1.0/(1.0+exp((v+105.8-2.6*ko)/9.493))
 GK1_tmp=0.1908*scale_IK1*scale_drug_IK1*scale_HF_GK1
 GK1_12 = Conditional(Eq(celltype, 1), GK1_tmp*1.2, GK1_tmp*1.3)
 GK1 = Conditional(Eq(celltype, 0), GK1_tmp, GK1_12)
-IK1=GK1*sqrt(ko)*rk1*xk1*(v-EK)
+IK1=scale_sex_GK1*GK1*sqrt(ko)*rk1*xk1*(v-EK)
 
 
 parameters("INaCa_i",
@@ -412,7 +470,7 @@ zna=1.0
 JncxNa_i=3.0*(E4_i*k7_i-E1_i*k8_i)+E3_i*k4pp_i-E2_i*k3pp_i
 JncxCa_i=E2_i*k2_i-E1_i*k1_i
 Gncx_12 = Conditional(Eq(celltype, 1), Gncx_tmp*1.1, Gncx_tmp*1.4)
-Gncx = Conditional(Eq(celltype, 0), Gncx_tmp, Gncx_12)
+Gncx = scale_sex_GNCX*Conditional(Eq(celltype, 0), Gncx_tmp, Gncx_12)
 INaCa_i=0.8*Gncx*scale_HF_Gncx*allo_i*(zna*JncxNa_i+zca*JncxCa_i)
 
 expressions("INaCa_ss")
@@ -503,7 +561,7 @@ JnakNa=3.0*(E1*a3-E2*b3)
 JnakK=2.0*(E4*b1-E3*a1)
 Pnak_12 = Conditional(Eq(celltype, 1), Pnak_tmp*0.9, Pnak_tmp*0.7)
 Pnak = Conditional(Eq(celltype, 0), Pnak_tmp, Pnak_12)
-INaK=Pnak*scale_HF_Pnak*(zna*JnakNa+zk*JnakK)
+INaK=scale_sex_PNaK*Pnak*scale_HF_Pnak*(zna*JnakNa+zk*JnakK)
 
 
 parameters("IKb",
@@ -512,7 +570,7 @@ GKb_tmp=0.003)
 expressions("IKb")
 xkb=1.0/(1.0+exp(-(v-14.48)/18.34))
 GKb = Conditional(Eq(celltype, 1), GKb_tmp*0.6, GKb_tmp)
-IKb=GKb*scale_drug_IKb*xkb*(v-EK)
+IKb=scale_sex_GKb*GKb*scale_drug_IKb*xkb*(v-EK)
 
 parameters("INab",
 PNab=3.75e-10)
@@ -531,7 +589,7 @@ parameters("IpCa",
 GpCa=0.0005)
 
 expressions("IpCa")
-IpCa=GpCa*scale_drug_IpCa*cai/(0.0005+cai)
+IpCa=scale_sex_GpCa*GpCa*scale_drug_IpCa*cai/(0.0005+cai)
 
 
 parameters("Isac (Pueyo)--> ns + k",
@@ -589,9 +647,9 @@ Jupp_tmp=2.75*0.004375*cai/(cai+0.00092-0.00017)
 Jupp = Conditional(Eq(celltype, 1), Jupp_tmp * 1.3, Jupp_tmp)
 fJupp=(1.0/(1.0+KmCaMK/CaMKa))
 Jleak=0.0039375*cansr*scale_HF_Jleak/15.0
-Jup=(1.0-fJupp)*Jupnp+fJupp*Jupp*scale_HF_Jup-Jleak
+Jup=scale_sex_GJup*(1.0-fJupp)*Jupnp+fJupp*Jupp*scale_HF_Jup-Jleak
 Jtr=(cansr-cajsr)/100.0
-cmdnmax = Conditional(Eq(celltype, 1), cmdnmax_tmp * 1.3, cmdnmax_tmp)
+cmdnmax = scale_sex_calm * Conditional(Eq(celltype, 1), cmdnmax_tmp * 1.3, cmdnmax_tmp)
 
 parameters("calcium buffers",
 cmdnmax_tmp=0.05,
@@ -662,7 +720,7 @@ lambda_min087 = Conditional(Lt(lambda_min12, 0.87), lambda_min12, 0.87)
 h_lambda_prima = 1+Beta0*(lambda_min12+lambda_min087-1.87)
 h_lambda = Conditional(Gt(h_lambda_prima, 0), h_lambda_prima, 0)
 XU = (1-TmB)-XS-XW
-gammawu = gammaw*abs(Zetaw)
+gammawu = gammaw*Abs(Zetaw)
 zetas1 = Zetas * Conditional(Gt(Zetas, 0.0), 1.0, 0.0)
 zetas2 = (-1.0 - Zetas) * Conditional(Lt(Zetas, -1.0), 1.0,0.0)
 gammasu  = gammas*Conditional(Gt(zetas1, zetas2), zetas1, zetas2)
