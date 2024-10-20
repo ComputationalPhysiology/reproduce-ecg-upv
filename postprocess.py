@@ -8,8 +8,11 @@ def plot_ecg():
     fig, ax = plt.subplots(3, 1, sharex=True)
 
     for sex in ["male", "female"]:
-        outdir = Path(f"results-{sex}")
-        data = json.loads((outdir / "extracellular_potential.json").read_text())
+        outdir = Path(f"results-{sex}-control")
+        ecg_file = outdir / "extracellular_potential.json"
+        if not ecg_file.is_file():
+            continue
+        data = json.loads(ecg_file.read_text())
         df = pd.DataFrame(data)
 
         ax[0].plot(df["time"].to_numpy(), df["I"].to_numpy(), label=sex)
@@ -19,7 +22,7 @@ def plot_ecg():
     ax[1].set_title("II")
     ax[2].set_title("III")
     ax[0].legend()
-    fig.savefig("ecg.png")
+    fig.savefig("ecg-new.png")
 
 
 if __name__ == "__main__":
