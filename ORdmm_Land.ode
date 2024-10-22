@@ -24,7 +24,7 @@
 #   Add scaling facotrs for heart failure and drugs
 
 
-parameters("Scales",
+parameters("Scales_Dutta",
 scale_IKr = 1.119,
 scale_IKs = 1.648,
 scale_IK1 = 1.414,
@@ -127,8 +127,8 @@ parameters("sex",
     scale_sex_GKr_EFP_female=0.98,
     scale_sex_GKs_EFP_male=1.4,
     scale_sex_GKs_EFP_female=1.19,
-    scale_sex_GpCa_EFP_male=0.82,
-    scale_sex_GpCa_EFP_female=1.0
+    scale_sex_GCaL_EFP_male=0.82,
+    scale_sex_GCaL_EFP_female=1.0
 )
 
 
@@ -136,7 +136,8 @@ expressions("sex")
 scale_sex_GNa = Conditional(Eq(sex, 0), 1.0, Conditional(Eq(sex, 1), scale_sex_GNa_male, scale_sex_GNa_female))
 scale_sex_GNaL = Conditional(Eq(sex, 0), 1.0, Conditional(Eq(sex, 1), scale_sex_GNaL_male, scale_sex_GNaL_female))
 scale_sex_Gtos = Conditional(Eq(sex, 0), 1.0, Conditional(Eq(sex, 1), scale_sex_Gtos_male, scale_sex_Gtos_male))
-scale_sex_GCaL = Conditional(Eq(sex, 0), 1.0, Conditional(Eq(sex, 1), scale_sex_GCaL_male, scale_sex_GCaL_female))
+scale_sex_GCaL_EFP = Conditional(Eq(sex, 0), 1.0, Conditional(Eq(sex, 1), scale_sex_GCaL_EFP_male, scale_sex_GCaL_EFP_female))
+scale_sex_GCaL = scale_sex_GCaL_EFP * Conditional(Eq(sex, 0), 1.0, Conditional(Eq(sex, 1), scale_sex_GCaL_male, scale_sex_GCaL_female))
 scale_sex_GKr_EFP = Conditional(Eq(sex, 0), 1.0, Conditional(Eq(sex, 1), scale_sex_GKr_EFP_male, scale_sex_GKr_EFP_female))
 scale_sex_GKr = scale_sex_GKr_EFP * Conditional(Eq(sex, 0), 1.0, Conditional(Eq(sex, 1), scale_sex_GKr_male, scale_sex_GKr_female))
 scale_sex_GKs_EFP = Conditional(Eq(sex, 0), 1.0, Conditional(Eq(sex, 1), scale_sex_GKs_EFP_male, scale_sex_GKs_EFP_female))
@@ -145,8 +146,7 @@ scale_sex_GK1 = Conditional(Eq(sex, 0), 1.0, Conditional(Eq(sex, 1), scale_sex_G
 scale_sex_GNCX = Conditional(Eq(sex, 0), 1.0, Conditional(Eq(sex, 1), scale_sex_GNCX_male, scale_sex_GNCX_female))
 scale_sex_PNaK = Conditional(Eq(sex, 0), 1.0, Conditional(Eq(sex, 1), scale_sex_PNaK_male, scale_sex_PNaK_female))
 scale_sex_GKb = Conditional(Eq(sex, 0), 1.0, Conditional(Eq(sex, 1), scale_sex_GKb_male, scale_sex_GKb_female))
-scale_sex_GpCa_EFP = Conditional(Eq(sex, 0), 1.0, Conditional(Eq(sex, 1), scale_sex_GpCa_EFP_male, scale_sex_GpCa_EFP_female))
-scale_sex_GpCa = scale_sex_GpCa_EFP * Conditional(Eq(sex, 0), 1.0, Conditional(Eq(sex, 1), scale_sex_GpCa_male, scale_sex_GpCa_female))
+scale_sex_GpCa = Conditional(Eq(sex, 0), 1.0, Conditional(Eq(sex, 1), scale_sex_GpCa_male, scale_sex_GpCa_female))
 scale_sex_GJup = Conditional(Eq(sex, 0), 1.0, Conditional(Eq(sex, 1), scale_sex_GJup_male, scale_sex_GJup_female))
 scale_sex_calm = Conditional(Eq(sex, 0), 1.0, Conditional(Eq(sex, 1), scale_sex_calm_male, scale_sex_calm_female))
 
