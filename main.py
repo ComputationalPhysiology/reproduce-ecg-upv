@@ -156,11 +156,42 @@ class Sex(IntEnum):
     female = 2
 
 
-def main(sex=Sex.male):
-    outdir = Path(f"results-{sex.name}-control")
+class Case(IntEnum):
+    control = 0
+    dofe = 1
+
+
+def case_parameters(case: Case) -> dict[str, float]:
+    if case == Case.control:
+        return {
+            "scale_drug_INa": 1.0,
+            "scale_drug_INaL": 1.0,
+            "scale_drug_Ito": 1.0,
+            "scale_drug_ICaL": 1.0,
+            "scale_drug_IKr": 1.0,
+            "scale_drug_IKs": 1.0,
+            "scale_drug_IK1": 1.0,
+        }
+    elif case == Case.dofe:
+        return {
+            "scale_drug_INa": 1.0,
+            "scale_drug_INaL": 1.0,
+            "scale_drug_Ito": 0.75,
+            "scale_drug_ICaL": 1.0,
+            "scale_drug_IKr": 0.627,
+            "scale_drug_IKs": 1.0,
+            "scale_drug_IK1": 1.0,
+        }
+    else:
+        raise ValueError(f"Unknown case {case}")
+
+
+def main(sex: Sex = Sex.male, case: Case = Case.control):
+    outdir = Path(f"results-{sex.name}-{case.name}")
     outdir.mkdir(exist_ok=True)
 
     data = load_data()
+    case_ps = case_parameters(case)
     module_path = Path("ORdmm_Land.py")
     if not module_path.is_file():
         ode = gotranx.load_ode(here / "ORdmm_Land.ode")
@@ -180,7 +211,9 @@ def main(sex=Sex.male):
         0: beat.single_cell.get_steady_state(
             fun=model["forward_generalized_rush_larsen"],
             init_states=model["init_state_values"](),
-            parameters=model["init_parameter_values"](celltype=0, sex=sex.value),
+            parameters=model["init_parameter_values"](
+                celltype=0, sex=sex.value, **case_ps
+            ),
             outdir=outdir / "steady-states-0D" / "mid",
             BCL=1000,
             nbeats=500,
@@ -190,7 +223,9 @@ def main(sex=Sex.male):
         1: beat.single_cell.get_steady_state(
             fun=model["forward_generalized_rush_larsen"],
             init_states=model["init_state_values"](),
-            parameters=model["init_parameter_values"](celltype=2, sex=sex.value),
+            parameters=model["init_parameter_values"](
+                celltype=2, sex=sex.value, **case_ps
+            ),
             outdir=outdir / "steady-states-0D" / "endo",
             BCL=1000,
             nbeats=500,
@@ -204,7 +239,9 @@ def main(sex=Sex.male):
         2: beat.single_cell.get_steady_state(
             fun=model["forward_generalized_rush_larsen"],
             init_states=model["init_state_values"](),
-            parameters=model["init_parameter_values"](celltype=1, sex=sex.value),
+            parameters=model["init_parameter_values"](
+                celltype=1, sex=sex.value, **case_ps
+            ),
             outdir=outdir / "steady-states-0D" / "epi",
             BCL=1000,
             nbeats=500,
@@ -220,9 +257,15 @@ def main(sex=Sex.male):
     }
     # endo = 0, epi = 1, M = 2
     parameters = {
-        0: model["init_parameter_values"](amp=0.0, celltype=0, sex=sex.value),
-        1: model["init_parameter_values"](amp=0.0, celltype=2, sex=sex.value),
-        2: model["init_parameter_values"](amp=0.0, celltype=1, sex=sex.value),
+        0: model["init_parameter_values"](
+            amp=0.0, celltype=0, sex=sex.value, **case_ps
+        ),
+        1: model["init_parameter_values"](
+            amp=0.0, celltype=2, sex=sex.value, **case_ps
+        ),
+        2: model["init_parameter_values"](
+            amp=0.0, celltype=1, sex=sex.value, **case_ps
+        ),
     }
     fun = {
         0: model["forward_generalized_rush_larsen"],
