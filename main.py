@@ -5,8 +5,7 @@ import dolfin
 import ufl_legacy as ufl
 import json
 import meshio
-import matplotlib.pyplot as plt
-import pandas as pd
+
 import beat
 import beat.single_cell
 import gotranx
@@ -158,7 +157,7 @@ class Sex(IntEnum):
 
 
 def main(sex=Sex.male):
-    outdir = Path(f"results-{sex.name}")
+    outdir = Path(f"results-{sex.name}-control")
     outdir.mkdir(exist_ok=True)
 
     data = load_data()
@@ -184,7 +183,7 @@ def main(sex=Sex.male):
             parameters=model["init_parameter_values"](celltype=0, sex=sex.value),
             outdir=outdir / "steady-states-0D" / "mid",
             BCL=1000,
-            nbeats=200,
+            nbeats=500,
             track_indices=[model["state_index"]("v"), model["state_index"]("cai")],
             dt=0.05,
         ),
@@ -194,7 +193,7 @@ def main(sex=Sex.male):
             parameters=model["init_parameter_values"](celltype=2, sex=sex.value),
             outdir=outdir / "steady-states-0D" / "endo",
             BCL=1000,
-            nbeats=200,
+            nbeats=500,
             track_indices=[
                 model["state_index"]("v"),
                 model["state_index"]("cai"),
@@ -208,7 +207,7 @@ def main(sex=Sex.male):
             parameters=model["init_parameter_values"](celltype=1, sex=sex.value),
             outdir=outdir / "steady-states-0D" / "epi",
             BCL=1000,
-            nbeats=200,
+            nbeats=500,
             track_indices=[model["state_index"]("v"), model["state_index"]("cai")],
             dt=0.05,
         ),
@@ -237,7 +236,7 @@ def main(sex=Sex.male):
     }
 
     # Surface to volume ratio
-    chi = 140.0 * ureg("mm**-1")
+    chi = 200.0 * ureg("mm**-1")
     # Membrane capacitance
     C_m = 0.01 * ureg("uF/mm**2")
 
@@ -255,8 +254,8 @@ def main(sex=Sex.male):
         marker=marker,
     )
 
-    s_l = (0.24 * ureg("S/m") / chi).to("uA/mv").magnitude
-    s_t = (0.0456 * ureg("S/m") / chi).to("uA/mv").magnitude
+    s_l = (0.24 * ureg("S/m") / chi).to("uA/mV").magnitude
+    s_t = (0.0456 * ureg("S/m") / chi).to("uA/mV").magnitude
 
     # M = beat.conductivities.define_conductivity_tensor(chi=chi, f0=data.fiber)
     f0 = data.fiber
@@ -283,9 +282,9 @@ def main(sex=Sex.male):
         v_index=v_index,
     )
 
-    T = 1000
-    # Change to 500 to simulate the full cardiac cycle
-    # T = 500
+    # Simulate 5 beats
+    T = 5000
+
     t = 0.0
     dt = 0.05
     solver = beat.MonodomainSplittingSolver(pde=pde, ode=ode)
