@@ -228,8 +228,10 @@ def main(sex: Sex = Sex.male, case: Case = Case.control):
         0: beat.single_cell.get_steady_state(
             fun=model["forward_generalized_rush_larsen"],
             init_states=model["init_state_values"](),
-            parameters=model["init_parameter_values"](celltype=0, sex=sex.value),
-            outdir=celldir / "mid",
+            parameters=model["init_parameter_values"](
+                celltype=0, sex=sex.value, **case_ps
+            ),
+            outdir=outdir / "steady-states-0D" / "mid",
             BCL=1000,
             nbeats=500,
             track_indices=[model["state_index"]("v"), model["state_index"]("cai")],
@@ -238,8 +240,10 @@ def main(sex: Sex = Sex.male, case: Case = Case.control):
         1: beat.single_cell.get_steady_state(
             fun=model["forward_generalized_rush_larsen"],
             init_states=model["init_state_values"](),
-            parameters=model["init_parameter_values"](celltype=2, sex=sex.value),
-            outdir=celldir / "endo",
+            parameters=model["init_parameter_values"](
+                celltype=2, sex=sex.value, **case_ps
+            ),
+            outdir=outdir / "steady-states-0D" / "endo",
             BCL=1000,
             nbeats=500,
             track_indices=[
@@ -252,8 +256,10 @@ def main(sex: Sex = Sex.male, case: Case = Case.control):
         2: beat.single_cell.get_steady_state(
             fun=model["forward_generalized_rush_larsen"],
             init_states=model["init_state_values"](),
-            parameters=model["init_parameter_values"](celltype=1, sex=sex.value),
-            outdir=celldir / "epi",
+            parameters=model["init_parameter_values"](
+                celltype=1, sex=sex.value, **case_ps
+            ),
+            outdir=outdir / "steady-states-0D" / "epi",
             BCL=1000,
             nbeats=500,
             track_indices=[model["state_index"]("v"), model["state_index"]("cai")],
