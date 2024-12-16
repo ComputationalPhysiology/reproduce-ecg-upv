@@ -5,29 +5,54 @@ import json
 
 
 def plot_ecg():
-    fig, ax = plt.subplots(3, 1, sharex=True)
-
+    fig, ax = plt.subplots(3, 1, sharex=True, figsize=(10, 10))
+    fig_last, ax_last = plt.subplots(3, 1, sharex=True, figsize=(10, 10))
     outdir = Path("results-simula")
     outdir.mkdir(exist_ok=True, parents=True)
 
+    lines = []
+    labels = []
     for sex in ["male", "female"]:
         for tag in ["control", "dofe"]:
-            resultsdir = Path(f"results-{sex}-{tag}")
-            ecg_file = resultsdir / "extracellular_potential.json"
-            if not ecg_file.is_file():
-                continue
-            data = json.loads(ecg_file.read_text())
-            df = pd.DataFrame(data)
-            df.to_csv(outdir / f"{sex}_{tag}.csv")
+            csv_file = outdir / f"{sex}_{tag}.csv"
+            if csv_file.is_file():
+                df = pd.read_csv(csv_file)
+            else:
+                resultsdir = Path(f"results-{sex}-{tag}")
+                ecg_file = resultsdir / "extracellular_potential.json"
+                if not ecg_file.is_file():
+                    continue
+                data = json.loads(ecg_file.read_text())
+                df = pd.DataFrame(data)
+                df.to_csv(csv_file)
 
-            ax[0].plot(df["time"].to_numpy(), df["I"].to_numpy(), label=sex)
-            ax[1].plot(df["time"].to_numpy(), df["II"].to_numpy(), label=sex)
-            ax[2].plot(df["time"].to_numpy(), df["III"].to_numpy(), label=sex)
-        ax[0].set_title("I")
-        ax[1].set_title("II")
-        ax[2].set_title("III")
-        ax[0].legend()
-        fig.savefig(outdir / "ecg.png")
+            (l,) = ax[0].plot(df["time"].to_numpy(), df["I"].to_numpy())
+            lines.append(l)
+            labels.append(f"{sex}({tag})")
+            ax[1].plot(df["time"].to_numpy(), df["II"].to_numpy())
+            ax[2].plot(df["time"].to_numpy(), df["III"].to_numpy())
+            ax_last[0].plot(df["time"].to_numpy()[-1000:], df["I"].to_numpy()[-1000:])
+            ax_last[1].plot(df["time"].to_numpy()[-1000:], df["II"].to_numpy()[-1000:])
+            ax_last[2].plot(df["time"].to_numpy()[-1000:], df["III"].to_numpy()[-1000:])
+        for axi in [ax, ax_last]:
+            axi[0].set_title("I")
+            axi[1].set_title("II")
+            axi[2].set_title("III")
+
+        for figi, label in [(fig, "all_beats"), (fig_last, "last_beat")]:
+            figi.subplots_adjust(right=0.8)
+            lgd = figi.legend(
+                lines, labels, loc="center left", bbox_to_anchor=(0.8, 0.5)
+            )
+            figi.savefig(
+                outdir / f"ecg_{label}.png",
+                bbox_extra_artists=(lgd,),
+                bbox_inches="tight",
+            )
+            plt.close(figi)
+        # fig.subplots_adjust(right=0.8)
+        # lgd = fig.legend(lines, labels, loc="center left", bbox_to_anchor=(0.8, 0.5))
+        # fig.savefig(outdir / "ecg.png", bbox_extra_artists=(lgd,), bbox_inches="tight")
 
 
 def normalize(x):
