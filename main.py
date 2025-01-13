@@ -197,8 +197,10 @@ def case_parameters(case: Case) -> dict[str, float]:
         raise ValueError(f"Unknown case {case}")
 
 
-def main(sex: Sex = Sex.male, case: Case = Case.control):
-    outdir = Path(f"results-{sex.name}-{case.name}")
+def main(sex: Sex = Sex.male, case: Case = Case.control, use_purkinje: bool = False):
+    outdir = Path(
+        f"results-{sex.name}-{case.name}-stim-{'purkinje' if use_purkinje else 'endo'}"
+    )
     outdir.mkdir(exist_ok=True)
 
     comm = dolfin.MPI.comm_world
@@ -307,18 +309,31 @@ def main(sex: Sex = Sex.male, case: Case = Case.control):
     C_m = 0.01 * ureg("uF/mm**2")
 
     time = dolfin.Constant(0.0)
-    subdomain_data = dolfin.MeshFunction("size_t", data.mesh, 2)
-    subdomain_data.set_all(0)
-    marker = 1
-    subdomain_data.array()[data.ffun.array() == data.markers["ENDO"]] = marker
-    I_s = beat.stimulation.define_stimulus(
-        mesh=data.mesh,
-        chi=chi,
-        mesh_unit=mesh_unit,
-        time=time,
-        subdomain_data=subdomain_data,
-        marker=marker,
-    )
+    stim_time = dolfin.Constant(0.0)
+
+    if use_purkinje:
+        purkinje_expr = Path("stimulation_expr.text").read_text()
+        stim_expr = dolfin.Expression(
+            purkinje_expr,
+            time=stim_time,
+            tol=1.0,
+            stim_amp=0.1,
+            degree=0,
+        )
+        I_s = beat.stimulation.Stimulus(dolfin.dP(domain=data.mesh), expr=stim_expr)
+    else:
+        subdomain_data = dolfin.MeshFunction("size_t", data.mesh, 2)
+        subdomain_data.set_all(0)
+        marker = 1
+        subdomain_data.array()[data.ffun.array() == data.markers["ENDO"]] = marker
+        I_s = beat.stimulation.define_stimulus(
+            mesh=data.mesh,
+            chi=chi,
+            mesh_unit=mesh_unit,
+            time=time,
+            subdomain_data=subdomain_data,
+            marker=marker,
+        )
 
     s_l = (0.24 * ureg("S/m") / chi).to("uA/mV").magnitude
     s_t = (0.0456 * ureg("S/m") / chi).to("uA/mV").magnitude
@@ -373,6 +388,7 @@ def main(sex: Sex = Sex.male, case: Case = Case.control):
 
     i = 0
     while t < T + 1e-12:
+        stim_time.assign(t % 1000)
         if i % 20 == 0:
             # Every ms
             v = solver.pde.state.vector().get_local()
@@ -399,7 +415,7 @@ def main(sex: Sex = Sex.male, case: Case = Case.control):
 
 
 if __name__ == "__main__":
-    # main(sex=Sex.male, case=Case.control)
-    # main(sex=Sex.female, case=Case.control)
-    main(sex=Sex.female, case=Case.dofe)
-    main(sex=Sex.male, case=Case.dofe)
+    # main(sex=Sex.male, case=Case.control, use_purkinje=True)
+    # main(sex=Sex.female, case=Case.control, use_purkinje=True)
+    # main(sex=Sex.male, case=Case.dofe, use_purkinje=True)
+    main(sex=Sex.female, case=Case.dofe, use_purkinje=True)
