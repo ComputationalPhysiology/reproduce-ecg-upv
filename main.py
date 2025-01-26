@@ -1,4 +1,3 @@
-from enum import IntEnum
 from typing import NamedTuple
 from pathlib import Path
 import dolfin
@@ -12,6 +11,8 @@ import beat
 import beat.single_cell
 import gotranx
 from beat.units import ureg
+
+from utils import Sex, Case, case_parameters, get_lead_positions
 
 here = Path(__file__).parent
 
@@ -67,25 +68,6 @@ def convert_data():
     fiber.vector().set_local(fiber_array)
     with dolfin.XDMFFile("fiber.xdmf") as xdmf:
         xdmf.write_checkpoint(fiber, "fiber", 0.0, dolfin.XDMFFile.Encoding.HDF5, False)
-
-
-def get_lead_positions() -> dict[str, tuple[float, float, float]]:
-    def name2lead(name):
-        if "LA" in name:
-            return "LA"
-        if "RA" in name:
-            return "RA"
-        if "LL" in name:
-            return "LL"
-        raise ValueError(f"Unknown lead name: {name}")
-
-    text = Path("limb_position.txt").read_text()
-    leads = {}
-    for line in text.splitlines():
-        pos, name = line.strip().split("!")
-        leads[name2lead(name)] = tuple(float(p) for p in pos.strip().split(" "))
-
-    return leads
 
 
 def load_data(comm) -> Geometry:
@@ -159,42 +141,6 @@ def save_ecg(
     )
     if comm.rank == 0:
         ecg_file.write_text(json.dumps(data, indent=2))
-
-
-class Sex(IntEnum):
-    undefined = 0
-    male = 1
-    female = 2
-
-
-class Case(IntEnum):
-    control = 0
-    dofe = 1
-
-
-def case_parameters(case: Case) -> dict[str, float]:
-    if case == Case.control:
-        return {
-            "scale_drug_INa": 1.0,
-            "scale_drug_INaL": 1.0,
-            "scale_drug_Ito": 1.0,
-            "scale_drug_ICaL": 1.0,
-            "scale_drug_IKr": 1.0,
-            "scale_drug_IKs": 1.0,
-            "scale_drug_IK1": 1.0,
-        }
-    elif case == Case.dofe:
-        return {
-            "scale_drug_INa": 1.0,
-            "scale_drug_INaL": 1.0,
-            "scale_drug_Ito": 0.75,
-            "scale_drug_ICaL": 1.0,
-            "scale_drug_IKr": 0.627,
-            "scale_drug_IKs": 1.0,
-            "scale_drug_IK1": 1.0,
-        }
-    else:
-        raise ValueError(f"Unknown case {case}")
 
 
 def main(sex: Sex = Sex.male, case: Case = Case.control, use_purkinje: bool = False):
