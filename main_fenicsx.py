@@ -1,48 +1,37 @@
 from pathlib import Path
-from typing import NamedTuple
+from typing import NamedTuple, Sequence, TYPE_CHECKING
 import logging
+import argparse
 import shutil
-
-from mpi4py import MPI
-import dolfinx
-import pandas as pd
-import adios4dolfinx
-
-import scifem
-import matplotlib.pyplot as plt
-import gotranx
-import numba
-import ufl
-import numpy as np
-import basix
-import pandas as pd
-
-import beat
 
 
 from utils import Sex, Case, case_parameters, get_lead_positions
+
+if TYPE_CHECKING:
+    import dolfinx
 
 here = Path(__file__).parent.absolute()
 
 logger = logging.getLogger(__name__)
 
 
-def convert_data(datadir, hexmesh: bool = True):
+def convert_data(
+    input: Path = Path("ModVent_PAP_hexaVol_0-4mm_17endo-42epi_Labeled_full (1).vtk"),
+    output: Path = Path("hex-mesh"),
+):
     import pyvista as pv
+    from mpi4py import MPI
+    import dolfinx
+    import adios4dolfinx
 
-    if hexmesh:
-        mesh_file = "ModVent_PAP_hexaVol_0-4mm_17endo-42epi_Labeled_full (1).vtk"
-    else:
-        mesh_file = "CI2B_DEF12_17endo-42epi_LABELED.vtk"
-
-    logger.info(f"Reading mesh file {mesh_file}")
-    reader = pv.get_reader(mesh_file)
+    logger.info(f"Reading mesh file {input}")
+    reader = pv.get_reader(input)
     vtk_mesh = reader.read()
 
-    datadir.mkdir(exist_ok=True)
-    data_file = datadir / "mesh.xdmf"
+    output.mkdir(exist_ok=True)
+    data_file = output / "mesh.xdmf"
     logger.info(f"Save mesh to XDMF file {data_file}")
-    pv.save_meshio(datadir / "mesh.xdmf", vtk_mesh)
+    pv.save_meshio(output / "mesh.xdmf", vtk_mesh)
 
     comm = MPI.COMM_WORLD
     logger.info("Load mesh into dolfinx")
@@ -58,12 +47,12 @@ def convert_data(datadir, hexmesh: bool = True):
     ]
     logger.info("Save endo_epi function for visualization")
     with dolfinx.io.VTXWriter(
-        mesh.comm, datadir / "endo_epi_viz.bp", [endo_epi], engine="BP5"
+        mesh.comm, output / "endo_epi_viz.bp", [endo_epi], engine="BP5"
     ) as vtx:
         vtx.write(0.0)
     logger.info("Save endo_epi function for simulation")
     adios4dolfinx.write_function_on_input_mesh(
-        datadir / "endo_epi.bp", endo_epi, time=0.0, name="endo_epi"
+        output / "endo_epi.bp", endo_epi, time=0.0, name="endo_epi"
     )
 
     logger.info("Create fiber function")
@@ -77,26 +66,28 @@ def convert_data(datadir, hexmesh: bool = True):
     fiber.x.array[2::3] = fiber_data[inds, 2]
     logger.info("Save fiber function for visualization")
     with dolfinx.io.VTXWriter(
-        mesh.comm, datadir / "fiber_viz.bp", [fiber], engine="BP5"
+        mesh.comm, output / "fiber_viz.bp", [fiber], engine="BP5"
     ) as vtx:
         vtx.write(0.0)
 
     logger.info("Save fiber function for simulation")
     adios4dolfinx.write_function_on_input_mesh(
-        datadir / "fiber.bp", fiber, time=0.0, name="fiber"
+        output / "fiber.bp", fiber, time=0.0, name="fiber"
     )
 
     logger.info("Create stimulus")
-    create_stimulus(mesh, datadir)
+    create_stimulus(mesh, output)
 
 
 class Geometry(NamedTuple):
-    mesh: dolfinx.mesh.Mesh
-    fiber: dolfinx.fem.Function
-    endo_epi: dolfinx.fem.Function
-    I_stim: dolfinx.fem.Function
+    mesh: "dolfinx.mesh.Mesh"
+    fiber: "dolfinx.fem.Function"
+    endo_epi: "dolfinx.fem.Function"
+    I_stim: "dolfinx.fem.Function"
 
     def update_stimulus(self, datadir, t, stim_duration=2, amplitude=10.0):
+        import adios4dolfinx
+
         logger.debug(f"Update stimulus at time {t}")
         T = int(t)
         self.I_stim.x.array[:] = 0.0
@@ -116,9 +107,11 @@ class Geometry(NamedTuple):
         self.I_stim.x.array[self.I_stim.x.array > 0] = amplitude
 
 
-def load_data(datadir, hexmesh: bool = True) -> Geometry:
-    if not datadir.is_dir():
-        convert_data(datadir, hexmesh=hexmesh)
+def load_data(datadir) -> Geometry:
+    from mpi4py import MPI
+    import dolfinx
+    import adios4dolfinx
+
     comm = MPI.COMM_WORLD
     logger.info("Load mesh")
     with dolfinx.io.XDMFFile(comm, datadir / "mesh.xdmf", "r") as xdmf:
@@ -143,6 +136,11 @@ def load_data(datadir, hexmesh: bool = True) -> Geometry:
 
 
 def create_stimulus(mesh, datadir):
+    import pandas as pd
+    import dolfinx
+    import numpy as np
+    import adios4dolfinx
+
     logger.info("Create stimulus")
     df = pd.read_csv("tact_pmj.csv")
 
@@ -180,6 +178,9 @@ def create_stimulus(mesh, datadir):
 
 
 def load_stimulus(Istim, datadir, t, stim_duration=2):
+    import adios4dolfinx
+    import dolfinx
+
     T = int(t)
     Istim.x.array[:] = 0.0
     if T >= 50:
@@ -194,17 +195,23 @@ def load_stimulus(Istim, datadir, t, stim_duration=2):
         Istim.x.array[:] += Istim_tmp.x.array[:]
 
 
-def main(sex: Sex = Sex.male, case: Case = Case.control, hexmesh=False):
-    if hexmesh:
-        datadir = Path("hex-mesh")
-        outdir = Path(f"hex-mesh-results-{sex.name}-{case.name}")
-    else:
-        datadir = Path("tet-mesh")
-        outdir = Path(f"tet-mesh-results-{sex.name}-{case.name}")
+def run(
+    outdir: Path,
+    datadir: Path,
+    sex: Sex = Sex.male,
+    case: Case = Case.control,
+):
+    import dolfinx
+    import adios4dolfinx
 
-    print(1)
-    geo = load_data(datadir, hexmesh=hexmesh)
+    import scifem
+    import gotranx
+    import numba
+    import ufl
 
+    import beat
+
+    geo = load_data(datadir)
     outdir.mkdir(exist_ok=True)
 
     comm = geo.mesh.comm
@@ -271,7 +278,6 @@ def main(sex: Sex = Sex.male, case: Case = Case.control, hexmesh=False):
             dt=0.05,
         ),
     }
-
     mesh_unit = "mm"
 
     # endo = 0, epi = 1, M = 2
@@ -394,6 +400,9 @@ def get_outdir(sex: Sex = Sex.male, case: Case = Case.control, hexmesh: bool = T
 def plot_single_ecg(
     sex: Sex = Sex.male, case: Case = Case.control, hexmesh: bool = True
 ):
+    import pandas as pd
+    import matplotlib.pyplot as plt
+
     outdir = get_outdir(sex=sex, case=case, hexmesh=hexmesh)
 
     df = pd.read_csv(outdir / "ecg.csv")
@@ -418,6 +427,9 @@ def plot_single_ecg(
 
 
 def compare_ecg(plot_upv=True):
+    import matplotlib.pyplot as plt
+    import pandas as pd
+
     lines = []
     fig, ax = plt.subplots(2, 3, figsize=(12, 8), sharex=True)
     for hexmesh in [False, True]:
@@ -485,15 +497,18 @@ def compare_ecg(plot_upv=True):
     fig.savefig(fname, bbox_extra_artists=(lgd,), bbox_inches="tight")
 
 
-def compute_ecg(sex: Sex = Sex.male, case: Case = Case.control, hexmesh=False):
-    if hexmesh:
-        datadir = Path("hex-mesh")
-        outdir = Path(f"hex-mesh-results-{sex.name}-{case.name}")
-    else:
-        datadir = Path("tet-mesh")
-        outdir = Path(f"tet-mesh-results-{sex.name}-{case.name}")
+def compute_ecg(
+    datadir: Path,
+    outdir: Path,
+):
+    from mpi4py import MPI
+    import pandas as pd
+    import beat
+    import ufl
+    import adios4dolfinx
+    import dolfinx
 
-    geo = load_data(datadir, hexmesh=False)
+    geo = load_data(datadir)
 
     V_ode = dolfinx.fem.functionspace(geo.mesh, ("P", 1))
     v = dolfinx.fem.Function(V_ode)
@@ -552,14 +567,103 @@ def compute_ecg(sex: Sex = Sex.male, case: Case = Case.control, hexmesh=False):
         df.to_csv(outdir / "ecg.csv", index=False)
 
 
-if __name__ == "__main__":
-    logging.basicConfig(level=logging.INFO)
+def get_parser():
+    kwargs = dict(formatter_class=argparse.ArgumentDefaultsHelpFormatter)
+    parser = argparse.ArgumentParser(description="Reproduce UPV ECG", **kwargs)
+    parser.add_argument(
+        "-v", "--verbose", action="store_true", help="Increase output verbosity"
+    )
 
-    for sex in Sex:
-        for case in Case:
-            for hexmesh in [True]:
-                main(sex=sex, case=case, hexmesh=hexmesh)
-                compute_ecg(sex=sex, case=case, hexmesh=hexmesh)
-                plot_single_ecg(sex=sex, case=case, hexmesh=hexmesh)
-    # compare_ecg(plot_upv=False)
-    # compare_ecg(plot_upv=True)
+    subparsers = parser.add_subparsers(dest="command")
+
+    # Run parser
+    run_parser = subparsers.add_parser(
+        "run", help="Print information about the data", **kwargs
+    )
+
+    # See https://stackoverflow.com/a/46385352
+    run_parser.add_argument(
+        "-s",
+        "--sex",
+        default="male",
+        type=str,
+        choices=list(Sex.__members__),
+        help="Sex",
+    )
+    run_parser.add_argument(
+        "-c",
+        "--case",
+        default="control",
+        type=str,
+        choices=list(Case.__members__),
+        help="Case",
+    )
+    run_parser.add_argument(
+        "-d",
+        "--datadir",
+        type=Path,
+        default=Path("hex-mesh"),
+        help="Path to directory with mesh",
+    )
+    run_parser.add_argument("-o", "--outdir", type=Path, help="Output directory")
+
+    # Convert parser
+    convert_parser = subparsers.add_parser(
+        "convert", help="Convert vtk data to dolfinx", **kwargs
+    )
+    convert_parser.add_argument("-i", "--input", type=Path, help="Input vtk file")
+    convert_parser.add_argument("-o", "--output", type=Path, help="Output folder")
+
+    # Compute ECG parser
+    ecg_parser = subparsers.add_parser("ecg", help="Compute ECG", **kwargs)
+    ecg_parser.add_argument(
+        "-d", "--datadir", type=Path, help="Path to directory with mesh"
+    )
+    ecg_parser.add_argument("-o", "--outdir", type=Path, help="Output directory")
+
+    return parser
+
+
+def validate_enums(**kwargs):
+    sex = kwargs.pop("sex")
+    if sex is None:
+        raise ValueError("Please specify sex")
+    if sex not in Sex.__members__:
+        raise ValueError(f"Invalid sex {sex}, please choose from {Sex.__members__}")
+    sex_ = Sex[sex]
+
+    case = kwargs.pop("case")
+    if case is None:
+        raise ValueError("Please specify case")
+    if case not in Case.__members__:
+        raise ValueError(f"Invalid case {case}, please choose from {Case.__members__}")
+    case_ = Case[case]
+
+    return sex_, case_, kwargs
+
+
+def dispatch(parser, argv: Sequence[str] | None = None) -> int:
+    args = vars(parser.parse_args(argv))
+    logging.basicConfig(level=logging.DEBUG if args.pop("verbose") else logging.INFO)
+
+    command = args.pop("command")
+    if command is None:
+        parser.error("Please specify a command")
+
+    if command == "run":
+        sex, case, args = validate_enums(**args)
+        run(sex=sex, case=case, **args)
+    if command == "convert":
+        convert_data(**args)
+    if command == "ecg":
+        compute_ecg(**args)
+
+
+def main(argv: Sequence[str] | None = None) -> int:
+    parser = get_parser()
+
+    return dispatch(parser, argv)
+
+
+if __name__ == "__main__":
+    raise SystemExit(main())
