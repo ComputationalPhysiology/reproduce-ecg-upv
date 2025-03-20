@@ -87,6 +87,7 @@ class Geometry(NamedTuple):
 
     def update_stimulus(self, datadir, t, stim_duration=2, amplitude=10.0):
         import adios4dolfinx
+        import dolfinx
 
         logger.debug(f"Update stimulus at time {t}")
         T = int(t)

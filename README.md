@@ -24,11 +24,11 @@ python3 main_fenicsx.py convert -i ModVent_PAP_hexaVol_0-4mm_17endo-42epi_Labele
 ## Run simulation
 
 ```
-python3 main_fenicsx.py run -d hex-mesh -o results-male-control --sex 1 --case 0
+python3 main_fenicsx.py run -d hex-mesh -o results-male-control --sex male --case control
 ```
 Note that here you might want to run the command using multiple cores, e.g (with 10 cores). 
 ```
-mpirun -n 10 python3 main_fenicsx.py run -d hex-mesh -o results-male-control --sex 1 --case 0
+mpirun -n 10 python3 main_fenicsx.py run -d hex-mesh -o results-male-control --sex male --case control
 ```
 
 To check which value corresponds to which sex you can run
