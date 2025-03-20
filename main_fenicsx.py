@@ -337,24 +337,13 @@ def run(
     )
 
     solver = beat.MonodomainSplittingSolver(pde=pde, ode=ode)
-
-    vtxfname = outdir / "v.bp"
     checkpointfname = outdir / "v_checkpoint.bp"
 
     # Make sure to remove the files if they already exist
-
-    shutil.rmtree(vtxfname, ignore_errors=True)
     shutil.rmtree(checkpointfname, ignore_errors=True)
-    vtx = dolfinx.io.VTXWriter(
-        comm,
-        vtxfname,
-        [solver.pde.state],
-        engine="BP4",
-    )
 
     def save(t):
         logger.info(f"Save data at time {t:.3f}")
-        vtx.write(t)
         adios4dolfinx.write_function_on_input_mesh(
             checkpointfname, solver.pde.state, time=t, name="v"
         )
@@ -424,6 +413,66 @@ def plot_single_ecg(
 
     fig.tight_layout()
     fig.savefig(outdir / "ecg.png")
+
+
+def create_visualization(datadir: Path, resultsdir: Path, outfile: Path | None = None):
+    # Requires pyvista, pyvista, tqdm, matplotlib, imageio[ffmpeg]
+    from mpi4py import MPI
+    import dolfinx
+    import adios4dolfinx
+    import pyvista
+    import tqdm
+    import matplotlib.pyplot as plt
+
+    if outfile is None:
+        outfile = resultsdir / "voltage.mp4"
+    else:
+        outfile = Path(outfile).with_suffix(".mp4")
+
+    logger.info(f"Create visualization for {resultsdir} using mesh from {datadir}")
+    logger.info(f"Output will be saved to {outfile}")
+
+    comm = MPI.COMM_WORLD
+    with dolfinx.io.XDMFFile(comm, datadir / "mesh.xdmf", "r") as xdmf:
+        mesh = xdmf.read_mesh(name="Grid")
+
+    V = dolfinx.fem.functionspace(mesh, ("P", 1))
+    v = dolfinx.fem.Function(V)
+
+    pyvista.start_xvfb()
+    grid = pyvista.UnstructuredGrid(*dolfinx.plot.vtk_mesh(V))
+    grid.point_data["V"] = v.x.array
+
+    checkpointfname = resultsdir / "v_checkpoint.bp"
+    time_stamps = adios4dolfinx.read_timestamps(
+        comm=mesh.comm, filename=checkpointfname, function_name="v"
+    )
+
+    plotter_voltage = pyvista.Plotter()
+    viridis = plt.get_cmap("viridis")
+    grid.point_data["V"] = v.x.array
+    grid.set_active_scalars("V")
+    plotter_voltage.add_mesh(
+        grid,
+        show_edges=True,
+        lighting=False,
+        cmap=viridis,
+        clim=[-90.0, 40.0],
+    )
+    plotter_voltage.camera_position = [
+        (240.0, 90.0, 102.0),
+        (86.0, 72.0, 254.0),
+        (-0.7, -0.2, -0.7),
+    ]
+
+    outfile.unlink(missing_ok=True)
+    plotter_voltage.open_movie(outfile.as_posix())
+
+    for t in tqdm.tqdm(time_stamps):
+        adios4dolfinx.read_function(checkpointfname, v, name="v", time=t)
+        grid.point_data["V"] = v.x.array
+        plotter_voltage.write_frame()
+    plotter_voltage.close()
 
 
 def compare_ecg(plot_upv=True):
@@ -499,8 +548,18 @@ def compare_ecg(plot_upv=True):
 
 def compute_ecg(
     datadir: Path,
-    outdir: Path,
+    resultsdir: Path,
+    ecgpath: Path | None = None,
 ):
+    logger.info(f"Compute ECG for {resultsdir} using mesh from {datadir}")
+
+    if ecgpath is None:
+        ecgpath = resultsdir / "ecg.csv"
+    else:
+        ecgpath = Path(ecgpath).with_suffix(".csv")
+
+    logger.info(f"Output will be saved to {ecgpath}")
+
     from mpi4py import MPI
     import pandas as pd
     import beat
@@ -529,7 +588,7 @@ def compute_ecg(
         dx=None,
         M=M,
     )
-    checkpointfname = outdir / "v_checkpoint.bp"
+    checkpointfname = resultsdir / "v_checkpoint.bp"
     time_stamps = adios4dolfinx.read_timestamps(
         comm=geo.mesh.comm, filename=checkpointfname, function_name="v"
     )
@@ -564,7 +623,7 @@ def compute_ecg(
         )
     if geo.mesh.comm.rank == 0:
         df = pd.DataFrame(ecg_data)
-        df.to_csv(outdir / "ecg.csv", index=False)
+        df.to_csv(ecgpath, index=False)
 
 
 def get_parser():
@@ -619,7 +678,32 @@ def get_parser():
     ecg_parser.add_argument(
         "-d", "--datadir", type=Path, help="Path to directory with mesh"
     )
-    ecg_parser.add_argument("-o", "--outdir", type=Path, help="Output directory")
+    ecg_parser.add_argument(
+        "-r", "--resultsdir", type=Path, help="Directory with results"
+    )
+    ecg_parser.add_argument(
+        "-e",
+        "--ecgpath",
+        type=Path,
+        help=(
+            "Path to save ECG in csv format. If not provided then a "
+            "file called ecg.csv will be saved in resultsdir"
+        ),
+    )
+
+    viz_parser = subparsers.add_parser("viz", help="Create visualization", **kwargs)
+    viz_parser.add_argument(
+        "-d", "--datadir", type=Path, help="Path to directory with mesh"
+    )
+    viz_parser.add_argument(
+        "-r", "--resultsdir", type=Path, help="Directory with results"
+    )
+    viz_parser.add_argument(
+        "-o",
+        "--outfile",
+        type=Path,
+        help="Output file for visualization. If not provided then a file called voltage.mp4 will be saved in resultsdir",
+    )
 
     return parser
 
@@ -657,6 +741,8 @@ def dispatch(parser, argv: Sequence[str] | None = None) -> int:
         convert_data(**args)
     if command == "ecg":
         compute_ecg(**args)
+    if command == "viz":
+        create_visualization(**args)
 
 
 def main(argv: Sequence[str] | None = None) -> int:
