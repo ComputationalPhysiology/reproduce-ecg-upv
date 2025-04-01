@@ -108,12 +108,10 @@ class Geometry(NamedTuple):
         self.I_stim.x.array[self.I_stim.x.array > 0] = amplitude
 
 
-def load_data(datadir) -> Geometry:
-    from mpi4py import MPI
+def load_data(datadir, comm) -> Geometry:
     import dolfinx
     import adios4dolfinx
 
-    comm = MPI.COMM_WORLD
     logger.info("Load mesh")
     with dolfinx.io.XDMFFile(comm, datadir / "mesh.xdmf", "r") as xdmf:
         mesh = xdmf.read_mesh(name="Grid")
@@ -196,22 +194,18 @@ def load_stimulus(Istim, datadir, t, stim_duration=2):
         Istim.x.array[:] += Istim_tmp.x.array[:]
 
 
-def generalized_rush_larsen(states, t, dt, parameters):
-    import numpy as np
-
-    return np.copy(states)
-
-
 def run(
     outdir: Path,
     datadir: Path,
     sex: Sex = Sex.male,
     case: Case = Case.control,
+    run_only_single_cell: bool = False,
 ):
+    from mpi4py import MPI
     import dolfinx
     import adios4dolfinx
 
-    import scifem
+    # import scifem
     import gotranx
 
     import numba
@@ -220,11 +214,10 @@ def run(
     import beat
     import beat.cli
 
-    beat.cli.setup_logging(level=logging.DEBUG)
-    geo = load_data(datadir)
+    comm = MPI.COMM_WORLD
     outdir.mkdir(exist_ok=True)
 
-    comm = geo.mesh.comm
+    beat.cli.setup_logging(level=logging.DEBUG)
 
     class MPIFilter(logging.Filter):
         def filter(self, record):
@@ -235,6 +228,9 @@ def run(
 
     handler = logging.getLogger().handlers[0]
     handler.addFilter(MPIFilter())
+
+    filehandler = logging.FileHandler(filename=outdir / "log.txt", mode="w")
+    logger.addHandler(filehandler)
 
     save_every_ms = 1.0
     dt = 0.05
@@ -298,6 +294,8 @@ def run(
             dt=0.05,
         ),
     }
+    if run_only_single_cell:
+        return
     mesh_unit = "mm"
 
     # endo = 0, epi = 1, M = 2
@@ -312,21 +310,11 @@ def run(
             amp=0.0, celltype=1, sex=sex.value, **case_ps
         ),
     }
-    # fun = {
-    #     0: numba.njit(model["generalized_rush_larsen"]),
-    #     1: numba.njit(model["generalized_rush_larsen"]),
-    #     2: numba.njit(model["generalized_rush_larsen"]),
-    # }
     fun = {
-        0: generalized_rush_larsen,
-        1: generalized_rush_larsen,
-        2: generalized_rush_larsen,
+        0: numba.njit(model["generalized_rush_larsen"]),
+        1: numba.njit(model["generalized_rush_larsen"]),
+        2: numba.njit(model["generalized_rush_larsen"]),
     }
-    # fun = {
-    #     0: model["generalized_rush_larsen"],
-    #     1: model["generalized_rush_larsen"],
-    #     2: model["generalized_rush_larsen"],
-    # }
     v_index = {
         0: model["state_index"]("v"),
         1: model["state_index"]("v"),
@@ -340,6 +328,8 @@ def run(
 
     s_l = (0.24 * beat.units.ureg("S/m") / chi).to("uA/mV").magnitude
     s_t = (0.0456 * beat.units.ureg("S/m") / chi).to("uA/mV").magnitude
+
+    geo = load_data(datadir, comm=comm)
 
     f0 = geo.fiber
     M = s_l * ufl.outer(f0, f0) + s_t * (ufl.Identity(3) - ufl.outer(f0, f0))
@@ -707,6 +697,12 @@ def get_parser():
         help="Path to directory with mesh",
     )
     run_parser.add_argument("-o", "--outdir", type=Path, help="Output directory")
+    run_parser.add_argument(
+        "-r",
+        "--run-only-single-cell",
+        action="store_true",
+        help="Run only the single cell simulation",
+    )
 
     # Convert parser
     convert_parser = subparsers.add_parser(
