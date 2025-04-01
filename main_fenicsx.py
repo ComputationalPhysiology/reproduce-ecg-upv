@@ -196,6 +196,12 @@ def load_stimulus(Istim, datadir, t, stim_duration=2):
         Istim.x.array[:] += Istim_tmp.x.array[:]
 
 
+def generalized_rush_larsen(states, t, dt, parameters):
+    import numpy as np
+
+    return np.copy(states)
+
+
 def run(
     outdir: Path,
     datadir: Path,
@@ -207,15 +213,28 @@ def run(
 
     import scifem
     import gotranx
+
     import numba
     import ufl
 
     import beat
+    import beat.cli
 
+    beat.cli.setup_logging(level=logging.DEBUG)
     geo = load_data(datadir)
     outdir.mkdir(exist_ok=True)
 
     comm = geo.mesh.comm
+
+    class MPIFilter(logging.Filter):
+        def filter(self, record):
+            if comm.rank == 0:
+                return 1
+            else:
+                return 0
+
+    handler = logging.getLogger().handlers[0]
+    handler.addFilter(MPIFilter())
 
     save_every_ms = 1.0
     dt = 0.05
@@ -293,11 +312,21 @@ def run(
             amp=0.0, celltype=1, sex=sex.value, **case_ps
         ),
     }
+    # fun = {
+    #     0: numba.njit(model["generalized_rush_larsen"]),
+    #     1: numba.njit(model["generalized_rush_larsen"]),
+    #     2: numba.njit(model["generalized_rush_larsen"]),
+    # }
     fun = {
-        0: numba.njit(model["generalized_rush_larsen"]),
-        1: numba.njit(model["generalized_rush_larsen"]),
-        2: numba.njit(model["generalized_rush_larsen"]),
+        0: generalized_rush_larsen,
+        1: generalized_rush_larsen,
+        2: generalized_rush_larsen,
     }
+    # fun = {
+    #     0: model["generalized_rush_larsen"],
+    #     1: model["generalized_rush_larsen"],
+    #     2: model["generalized_rush_larsen"],
+    # }
     v_index = {
         0: model["state_index"]("v"),
         1: model["state_index"]("v"),
@@ -353,9 +382,11 @@ def run(
     ode_state_file.unlink(missing_ok=True)
     ode_state_file.with_suffix(".h5").unlink(missing_ok=True)
 
-    state_functions = ode.states_to_dolfin(names=model["state"].keys())
-    xdmf = scifem.xdmf.XDMFFile(ode_state_file, state_functions)
-    xdmf.write(0.0)
+    # state_functions = ode.states_to_dolfin(names=model["state"].keys())
+    # xdmf = scifem.xdmf.XDMFFile(ode_state_file, state_functions)
+    # xdmf.write(0.0)
+
+    import time
 
     num_beats = 5
     BCL = 1000.0
@@ -365,17 +396,27 @@ def run(
         while t < BCL + 1e-12:
             # Load stimulus every ms
             if i % int(1 / dt) == 0:
+                t0_stim = time.perf_counter()
+                logger.info("Update stimulus")
                 geo.update_stimulus(datadir, t)
-
+                logger.info(
+                    "Update stimulus took %.3f s", time.perf_counter() - t0_stim
+                )
             if i % save_freq == 0:
+                t0_save = time.perf_counter()
+                logger.info("Save data")
                 save(t)
+                logger.info("Save data took %.3f s", time.perf_counter() - t0_save)
 
+            t0_solve = time.perf_counter()
+            logger.info(f"Solve at time {t:.3f}")
             solver.step((t, t + dt))
+            logger.info("Solve took %.3f s", time.perf_counter() - t0_solve)
             i += 1
             t += dt
 
-        ode.assign_all_states(state_functions)
-        xdmf.write(float(b + 1))
+        # ode.assign_all_states(state_functions)
+        # xdmf.write(float(b + 1))
 
 
 def get_outdir(sex: Sex = Sex.male, case: Case = Case.control, hexmesh: bool = True):
