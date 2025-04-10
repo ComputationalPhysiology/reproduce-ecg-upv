@@ -207,8 +207,8 @@ def run(
 
     # import scifem
     import gotranx
-
-    import numba
+    import pandas as pd
+    # import numba
     import ufl
 
     import beat
@@ -361,20 +361,64 @@ def run(
 
     # Make sure to remove the files if they already exist
     shutil.rmtree(checkpointfname, ignore_errors=True)
+    ecgpath = outdir / "ecg.csv"
+    ecgpath.unlink(missing_ok=True)
+    recv = beat.ecg.ECGRecovery(
+        v=solver.pde.state,
+        sigma_b=1.0,
+        C_m=C_m.to(f"uF/{mesh_unit}**2").magnitude,
+        dx=None,
+        M=M,
+    )
+
+    leads = get_lead_positions()
+    LA_form = recv.eval(point=leads["LA"])
+    RA_form = recv.eval(point=leads["RA"])
+    LL_form = recv.eval(point=leads["LL"])
+
+    ecg_data = []
+
+        
 
     def save(t):
         logger.info(f"Save data at time {t:.3f}")
+        t0 = time.perf_counter()
         adios4dolfinx.write_function_on_input_mesh(
             checkpointfname, solver.pde.state, time=t, name="v"
         )
+        logger.info(f"Save data took {time.perf_counter() - t0:.3f} s")
+
+        recv.solve()
+        LA = geo.mesh.comm.allreduce(dolfinx.fem.assemble_scalar(LA_form), op=MPI.SUM)
+        RA = geo.mesh.comm.allreduce(dolfinx.fem.assemble_scalar(RA_form), op=MPI.SUM)
+        LL = geo.mesh.comm.allreduce(dolfinx.fem.assemble_scalar(LL_form), op=MPI.SUM)
+
+        I = LA - RA
+        II = LL - RA
+        III = LL - LA
+
+        ecg_data.append(
+            {
+                "time": t,
+                "I": I,
+                "II": II,
+                "III": III,
+                "LA": LA,
+                "RA": RA,
+                "LL": LL,
+            }
+        )
+        if geo.mesh.comm.rank == 0:
+            df = pd.DataFrame(ecg_data)
+            df.to_csv(ecgpath, index=False)
 
     ode_state_file = outdir / "ode_state.xdmf"
     ode_state_file.unlink(missing_ok=True)
     ode_state_file.with_suffix(".h5").unlink(missing_ok=True)
 
-    # state_functions = ode.states_to_dolfin(names=model["state"].keys())
-    # xdmf = scifem.xdmf.XDMFFile(ode_state_file, state_functions)
-    # xdmf.write(0.0)
+    state_functions = ode.states_to_dolfin(names=model["state"].keys())
+    xdmf = scifem.xdmf.XDMFFile(ode_state_file, state_functions)
+    xdmf.write(0.0)
 
     import time
 
@@ -405,8 +449,8 @@ def run(
             i += 1
             t += dt
 
-        # ode.assign_all_states(state_functions)
-        # xdmf.write(float(b + 1))
+        ode.assign_all_states(state_functions)
+        xdmf.write(float(b + 1))
 
 
 def get_outdir(sex: Sex = Sex.male, case: Case = Case.control, hexmesh: bool = True):

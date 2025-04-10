@@ -9,13 +9,14 @@ template = dedent(
 #SBATCH --partition={partition}
 #SBATCH --time=6-00:00:00
 #SBATCH --ntasks={ntasks}
-#SBATCH --ntasks-per-node={ntasks}
 #SBATCH --output=%j-%x-stdout.txt
 #SBATCH --error=%j-%x-stderr.txt
 
 module use /cm/shared/spack-modules/modulefiles
 module load spack/0.23.1
-spack env activate fenicsx-stable-slowq
+umask 0002
+spack env activate fenicsx-stable-milanq-openmpi
+module load openmpi/gcc/64/4.1.5
 export PYTHONPATH=$(find $SPACK_ENV/.spack-env -type d -name 'site-packages' | grep venv):$PYTHONPATH
 
 
@@ -24,8 +25,7 @@ SCRATCH_DIRECTORY=${{ROOT}}/results/{sex}-{case}
 mkdir -p ${{SCRATCH_DIRECTORY}}
 echo "Scratch directory: ${{SCRATCH_DIRECTORY}}"
 
-#srun -n {ntasks} python3 ${{ROOT}}/test_adios2.py
-srun python3 ${{ROOT}}/main_fenicsx.py run -d ${{ROOT}}/hex-mesh -o ${{SCRATCH_DIRECTORY}} --sex {sex} --case {case}
+mpirun -n {ntasks} python3 ${{ROOT}}/main_fenicsx.py run -d ${{ROOT}}/hex-mesh -o ${{SCRATCH_DIRECTORY}} --sex {sex} --case {case}
 # Move log file to results folder
 mv ${{SLURM_JOBID}}-* ${{SCRATCH_DIRECTORY}}
 """
@@ -42,8 +42,8 @@ def main():
                 template.format(
                     sex=sex, 
                     case=case,
-                    ntasks=36,
-                    partition="slowq"
+                    ntasks=64,
+                    partition="milanq"
                     # partition="xeongold16q"
                 )
             )
