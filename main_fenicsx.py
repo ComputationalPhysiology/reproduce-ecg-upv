@@ -5,7 +5,7 @@ import argparse
 import shutil
 
 
-from utils import Sex, Case, case_parameters, get_lead_positions
+from utils import Sex, Case, case_parameters, get_lead_positions, upv_path
 
 if TYPE_CHECKING:
     import dolfinx
@@ -395,11 +395,11 @@ def run(
             if i % save_freq == 0:
                 t0_save = time.perf_counter()
                 logger.info("Save data")
-                save(t)
+                save(t + b * BCL)
                 logger.info("Save data took %.3f s", time.perf_counter() - t0_save)
 
             t0_solve = time.perf_counter()
-            logger.info(f"Solve at time {t:.3f}")
+            logger.info(f"Solve at time {t + b * BCL:.3f}")
             solver.step((t, t + dt))
             logger.info("Solve took %.3f s", time.perf_counter() - t0_solve)
             i += 1
@@ -507,65 +507,84 @@ def create_visualization(datadir: Path, resultsdir: Path, outfile: Path | None =
     plotter_voltage.close()
 
 
-def compare_ecg(plot_upv=True):
+def plot_ecg(
+    resultsdir: Path,
+    outdir: Path | None = None,
+    plot_upv=True,
+    sex: Sex = Sex.male,
+    case: Case = Case.control,
+):
     import matplotlib.pyplot as plt
     import pandas as pd
 
     lines = []
+    labels = []
     fig, ax = plt.subplots(2, 3, figsize=(12, 8), sharex=True)
-    for hexmesh in [False, True]:
-        outdir = get_outdir(hexmesh=hexmesh)
-        df = pd.read_csv(
-            outdir / "ecg.csv",
-        )
 
-        ax[0, 0].plot(df["time"], df["LA"] / 0.05)
+    df = pd.read_csv(
+        resultsdir / "ecg.csv",
+    )
+    if outdir is None:
+        outdir = resultsdir
+    outdir.mkdir(exist_ok=True)
+    num_beats = 1 + len(df["time"]) // 1000
+
+    for i in range(num_beats):
+        s = i * 1000
+        e = (i + 1) * 1000
+        t0 = df["time"][s]
+        ax[0, 0].plot(df["time"][s:e] - t0, df["LA"][s:e])
         ax[0, 0].set_title("LA")
-        ax[0, 1].plot(df["time"], df["RA"] / 0.05)
+        ax[0, 1].plot(df["time"][s:e] - t0, df["RA"][s:e])
         ax[0, 1].set_title("RA")
-        ax[0, 2].plot(df["time"], df["LL"] / 0.05)
+        ax[0, 2].plot(df["time"][s:e] - t0, df["LL"][s:e])
         ax[0, 2].set_title("LL")
 
-        ax[1, 0].plot(df["time"], df["I"] / 0.05)
+        ax[1, 0].plot(df["time"][s:e] - t0, df["I"][s:e])
         ax[1, 0].set_title("I")
-        ax[1, 1].plot(df["time"], df["II"] / 0.05)
+        ax[1, 1].plot(df["time"][s:e] - t0, df["II"][s:e])
         ax[1, 1].set_title("II")
-        (l,) = ax[1, 2].plot(df["time"], df["III"] / 0.05)
+        (l,) = ax[1, 2].plot(df["time"][s:e] - t0, df["III"][s:e])
         ax[1, 2].set_title("III")
         lines.append(l)
-    labels = ["Tet mesh", "Hex mesh"]
+        labels.append(f"Simula (beat {i + 1})")
 
     if plot_upv:
         start_upv = 30
-        upv = pd.read_csv("results-upv/male_ctrl.csv")
+        upv = pd.read_csv(upv_path(sex, case))
 
         time, I, II, III = upv.values.T
 
+        upv_factor = 0.17
+
         ax[1, 0].plot(
             time[:500],
-            0.17 * I[start_upv : start_upv + 500],
+            upv_factor * I[start_upv : start_upv + 500],
             linestyle="--",
             color="black",
         )
         ax[1, 1].plot(
             time[:500],
-            0.17 * II[start_upv : start_upv + 500],
+            upv_factor * II[start_upv : start_upv + 500],
             linestyle="--",
             color="black",
         )
         (l,) = ax[1, 2].plot(
             time[:500],
-            0.17 * III[start_upv : start_upv + 500],
+            upv_factor * III[start_upv : start_upv + 500],
             linestyle="--",
             color="black",
         )
         lines.append(l)
-        labels.append("UPV*0.17 (shift 30 ms)")
+        labels.append(f"UPV*{upv_factor} (shift 30 ms)")
         fname = "ecg-compare-upv.png"
-        ncol = 3
+        ncol = 1 + num_beats
     else:
-        ncol = 2
-        fname = "ecg-compare.png"
+        ncol = num_beats
+        fname = "ecg.png"
+
+    for axi in ax.flatten():
+        axi.grid()
 
     lgd = fig.legend(
         lines,
@@ -575,7 +594,7 @@ def compare_ecg(plot_upv=True):
         bbox_to_anchor=(0.5, -0.05),
     )
     fig.tight_layout()
-    fig.savefig(fname, bbox_extra_artists=(lgd,), bbox_inches="tight")
+    fig.savefig(outdir / fname, bbox_extra_artists=(lgd,), bbox_inches="tight")
 
 
 def compute_ecg(
@@ -599,7 +618,8 @@ def compute_ecg(
     import adios4dolfinx
     import dolfinx
 
-    geo = load_data(datadir)
+    comm = MPI.COMM_WORLD
+    geo = load_data(datadir, comm=comm)
 
     V_ode = dolfinx.fem.functionspace(geo.mesh, ("P", 1))
     v = dolfinx.fem.Function(V_ode)
@@ -628,9 +648,17 @@ def compute_ecg(
     LA_form = recv.eval(point=leads["LA"])
     RA_form = recv.eval(point=leads["RA"])
     LL_form = recv.eval(point=leads["LL"])
+    if ecgpath.is_file():
+        logger.info(f"ECG file {ecgpath} already exists, loading data")
+        df = pd.read_csv(ecgpath)
+        ecg_data = df.to_dict("records")
+        start_index = len(ecg_data)
+    else:
+        ecg_data = []
+        start_index = 0
 
-    ecg_data = []
-    for t in time_stamps:
+    for t in time_stamps[start_index:]:
+        logger.info(f"Read data at time {t}")
         adios4dolfinx.read_function(checkpointfname, v, name="v", time=t)
 
         recv.solve()
@@ -653,9 +681,9 @@ def compute_ecg(
                 "LL": LL,
             }
         )
-    if geo.mesh.comm.rank == 0:
-        df = pd.DataFrame(ecg_data)
-        df.to_csv(ecgpath, index=False)
+        if geo.mesh.comm.rank == 0:
+            df = pd.DataFrame(ecg_data)
+            df.to_csv(ecgpath, index=False)
 
 
 def get_parser():
@@ -743,6 +771,39 @@ def get_parser():
         help="Output file for visualization. If not provided then a file called voltage.mp4 will be saved in resultsdir",
     )
 
+    plot_ecg_parser = subparsers.add_parser("plot-ecg", help="Plot ECG", **kwargs)
+    plot_ecg_parser.add_argument(
+        "-r", "--resultsdir", type=Path, help="Directory with results"
+    )
+    plot_ecg_parser.add_argument(
+        "-u",
+        "--plot-upv",
+        action="store_true",
+        help="Plot UPV data",
+    )
+    plot_ecg_parser.add_argument(
+        "-o",
+        "--outdir",
+        type=Path,
+        default=None,
+        help="Output directory. If not provided, will be saved in resultsdir",
+    )
+    plot_ecg_parser.add_argument(
+        "-s",
+        "--sex",
+        type=str,
+        choices=list(Sex.__members__),
+        help="Sex",
+    )
+    plot_ecg_parser.add_argument(
+        "-c",
+        "--case",
+        default="control",
+        type=str,
+        choices=list(Case.__members__),
+        help="Case",
+    )
+
     return parser
 
 
@@ -781,6 +842,9 @@ def dispatch(parser, argv: Sequence[str] | None = None) -> int:
         compute_ecg(**args)
     if command == "viz":
         create_visualization(**args)
+    if command == "plot-ecg":
+        sex, case, args = validate_enums(**args)
+        plot_ecg(sex=sex, case=case, **args)
 
 
 def main(argv: Sequence[str] | None = None) -> int:

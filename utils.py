@@ -13,6 +13,17 @@ class Case(IntEnum):
     dofe = 1
 
 
+def upv_path(sex: Sex, case: Case) -> Path:
+    case2value = {
+        Case.control: "ctrl",
+        Case.dofe: "dofe",
+    }
+
+    fname = f"{sex.name}_{case2value[case]}.csv"
+
+    return Path(__file__).absolute().parent / "results-upv" / fname
+
+
 def case_parameters(case: Case) -> dict[str, float]:
     if case == Case.control:
         return {
