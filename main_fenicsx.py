@@ -198,17 +198,17 @@ def run(
     outdir: Path,
     datadir: Path,
     sex: Sex = Sex.male,
-    case: Case = Case.control,
+    case: Case = Case.CTRL,
     run_only_single_cell: bool = False,
 ):
     from mpi4py import MPI
     import dolfinx
     import adios4dolfinx
 
-    # import scifem
+    import scifem
     import gotranx
     import pandas as pd
-    # import numba
+    import numba
     import ufl
 
     import beat
@@ -453,7 +453,7 @@ def run(
         xdmf.write(float(b + 1))
 
 
-def get_outdir(sex: Sex = Sex.male, case: Case = Case.control, hexmesh: bool = True):
+def get_outdir(sex: Sex = Sex.male, case: Case = Case.CTRL, hexmesh: bool = True):
     if hexmesh:
         outdir = Path(f"hex-mesh-results-{sex.name}-{case.name}")
     else:
@@ -463,7 +463,7 @@ def get_outdir(sex: Sex = Sex.male, case: Case = Case.control, hexmesh: bool = T
 
 
 def plot_single_ecg(
-    sex: Sex = Sex.male, case: Case = Case.control, hexmesh: bool = True
+    sex: Sex = Sex.male, case: Case = Case.CTRL, hexmesh: bool = True
 ):
     import pandas as pd
     import matplotlib.pyplot as plt
@@ -556,7 +556,7 @@ def plot_ecg(
     outdir: Path | None = None,
     plot_upv=True,
     sex: Sex = Sex.male,
-    case: Case = Case.control,
+    case: Case = Case.CTRL,
 ):
     import matplotlib.pyplot as plt
     import pandas as pd
@@ -756,7 +756,7 @@ def get_parser():
     run_parser.add_argument(
         "-c",
         "--case",
-        default="control",
+        default="CTRL",
         type=str,
         choices=list(Case.__members__),
         help="Case",
@@ -842,7 +842,7 @@ def get_parser():
     plot_ecg_parser.add_argument(
         "-c",
         "--case",
-        default="control",
+        default="CTRL",
         type=str,
         choices=list(Case.__members__),
         help="Case",

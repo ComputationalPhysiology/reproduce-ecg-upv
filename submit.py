@@ -2,12 +2,13 @@ import time
 from textwrap import dedent
 from pathlib import Path
 import subprocess as sp
+from utils import Case
 
 template = dedent(
     """#!/bin/bash
 #SBATCH --job-name="{sex}-{case}"
 #SBATCH --partition={partition}
-#SBATCH --time=6-00:00:00
+#SBATCH --time=10-00:00:00
 #SBATCH --ntasks={ntasks}
 #SBATCH --output=%j-%x-stdout.txt
 #SBATCH --error=%j-%x-stderr.txt
@@ -35,8 +36,7 @@ mv ${{SLURM_JOBID}}-* ${{SCRATCH_DIRECTORY}}
 def main():
 
     for sex in ["male", "female"]:
-        for case in ["control", "dofe"]:
-            
+        for case in [c.name for c in Case]:
             job_file = Path("tmp_job.sbatch")
             job_file.write_text(
                 template.format(
