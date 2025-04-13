@@ -60,17 +60,20 @@ def case_parameters(case: Case) -> dict[str, float]:
         sheet_name="fraction",
     )
 
+    nan_or_one = lambda x: 1.0 if pd.isna(x) else float(x)
+
     factors = df[df["Unnamed: 0"] == case.name]
 
-    return {
-        "scale_drug_INa": factors["fINa "].values[0],
-        "scale_drug_INaL": factors["fINaL "].values[0],
-        "scale_drug_Ito": factors["fIto "].values[0],
-        "scale_drug_ICaL": factors["fICaL"].values[0],
-        "scale_drug_IKr": factors["fIKr "].values[0],
-        "scale_drug_IKs": factors["fIKs"].values[0],
-        "scale_drug_IK1": factors["fIK1 "].values[0],
+    values= {
+        "scale_drug_INa": nan_or_one(factors["fINa "].values[0]),
+        "scale_drug_INaL": nan_or_one(factors["fINaL "].values[0]),
+        "scale_drug_Ito": nan_or_one(factors["fIto "].values[0]),
+        "scale_drug_ICaL": nan_or_one(factors["fICaL"].values[0]),
+        "scale_drug_IKr": nan_or_one(factors["fIKr "].values[0]),
+        "scale_drug_IKs": nan_or_one(factors["fIKs"].values[0]),
+        "scale_drug_IK1": nan_or_one(factors["fIK1 "].values[0]),
     }
+    return values
   
 
 def get_lead_positions() -> dict[str, tuple[float, float, float]]:

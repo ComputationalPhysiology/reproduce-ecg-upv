@@ -232,11 +232,15 @@ def run(
     filehandler = logging.FileHandler(filename=outdir / "log.txt", mode="w")
     logger.addHandler(filehandler)
 
+    logger.info(f"Running with {comm.size} processes")
+
     save_every_ms = 1.0
     dt = 0.05
     save_freq = round(save_every_ms / dt)
 
     case_ps = case_parameters(case)
+
+ 
     module_path = Path("ORdmm_Land.py")
     if not module_path.is_file():
         ode = gotranx.load_ode(here / "ORdmm_Land.ode")
