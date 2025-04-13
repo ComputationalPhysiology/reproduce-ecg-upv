@@ -263,7 +263,7 @@ def run(
             BCL=1000,
             nbeats=500,
             track_indices=[model["state_index"]("v"), model["state_index"]("cai")],
-            dt=0.05,
+            dt=0.01,
         ),
         1: beat.single_cell.get_steady_state(
             fun=model["generalized_rush_larsen"],
@@ -279,7 +279,7 @@ def run(
                 model["state_index"]("cai"),
                 model["state_index"]("nai"),
             ],
-            dt=0.05,
+            dt=0.01,
         ),
         2: beat.single_cell.get_steady_state(
             fun=model["generalized_rush_larsen"],
@@ -291,7 +291,7 @@ def run(
             BCL=1000,
             nbeats=500,
             track_indices=[model["state_index"]("v"), model["state_index"]("cai")],
-            dt=0.05,
+            dt=0.01,
         ),
     }
     if run_only_single_cell:
