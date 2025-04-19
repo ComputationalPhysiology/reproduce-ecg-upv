@@ -28,7 +28,8 @@ SCRATCH_DIRECTORY=${{ROOT}}/results/{sex}-{case}
 mkdir -p ${{SCRATCH_DIRECTORY}}
 echo "Scratch directory: ${{SCRATCH_DIRECTORY}}"
 
-/home/henriknf/miniforge3/envs/fenicsx-v09/bin/mpirun -n {ntasks} /home/henriknf/miniforge3/envs/fenicsx-v09/bin/python ${{ROOT}}/main_fenicsx.py run -d ${{ROOT}}/hex-mesh -o ${{SCRATCH_DIRECTORY}} --sex {sex} --case {case}
+CONDA_PREFIX=/home/henriknf/miniforge3/envs/fenicsx-v09
+$CONDA_PREFIX/bin/mpirun -n {ntasks} $CONDA_PREFIX/bin/python ${{ROOT}}/main_fenicsx.py run -d ${{ROOT}}/hex-mesh -o ${{SCRATCH_DIRECTORY}} --sex {sex} --case {case}
 # Move log file to results folder
 mv slurm-output/${{SLURM_JOBID}}-* ${{SCRATCH_DIRECTORY}}
 """
