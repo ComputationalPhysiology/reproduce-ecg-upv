@@ -495,10 +495,47 @@ def plot_single_ecg(
     fig.savefig(outdir / "ecg.png")
 
 
+
+def convert_voltage(resultsdir: Path, datadir: Path):
+    from mpi4py import MPI
+    import dolfinx
+    import adios4dolfinx
+    import numpy as np
+
+    import tqdm
+
+
+    logger.info(f"Convert voltage in  {resultsdir} using mesh from {datadir}")
+
+    comm = MPI.COMM_WORLD
+    with dolfinx.io.XDMFFile(comm, datadir / "mesh.xdmf", "r") as xdmf:
+        mesh = xdmf.read_mesh(name="Grid")
+
+    V = dolfinx.fem.functionspace(mesh, ("P", 1))
+    v = dolfinx.fem.Function(V)
+
+    checkpointfname = resultsdir / "v_checkpoint.bp"
+    time_stamps = adios4dolfinx.read_timestamps(
+        comm=mesh.comm, filename=checkpointfname, function_name="v"
+    )
+
+    folder = resultsdir / "voltage_checkpoint"
+    shutil.rmtree(folder, ignore_errors=True)
+    folder.mkdir(exist_ok=True, parents=True)
+
+
+    for i, t in tqdm.tqdm(enumerate(time_stamps)):
+        adios4dolfinx.read_function(checkpointfname, v, name="v", time=t)
+        np.save(folder / f"v_{i:04d}.npy", v.x.array)
+
+    shutil.rmtree(checkpointfname, ignore_errors=True)
+
+
 def create_visualization(datadir: Path, resultsdir: Path, outfile: Path | None = None):
     # Requires pyvista, pyvista, tqdm, matplotlib, imageio[ffmpeg]
     from mpi4py import MPI
     import dolfinx
+    import numpy as np
     import adios4dolfinx
     import pyvista
     import tqdm
@@ -534,7 +571,7 @@ def create_visualization(datadir: Path, resultsdir: Path, outfile: Path | None =
     grid.set_active_scalars("V")
     plotter_voltage.add_mesh(
         grid,
-        show_edges=True,
+        show_edges=False,
         lighting=False,
         cmap=viridis,
         clim=[-90.0, 40.0],
@@ -548,10 +585,17 @@ def create_visualization(datadir: Path, resultsdir: Path, outfile: Path | None =
     outfile.unlink(missing_ok=True)
     plotter_voltage.open_movie(outfile.as_posix())
 
-    for t in tqdm.tqdm(time_stamps):
+    folder = resultsdir / "voltage_checkpoint"
+    shutil.rmtree(folder, ignore_errors=True)
+    folder.mkdir(exist_ok=True, parents=True)
+
+    for i, t in tqdm.tqdm(enumerate(time_stamps)):
         adios4dolfinx.read_function(checkpointfname, v, name="v", time=t)
         grid.point_data["V"] = v.x.array
         plotter_voltage.write_frame()
+        np.save(folder / f"v_{i:04d}.npy", v.x.array)
+
+    shutil.rmtree(checkpointfname, ignore_errors=True)
     plotter_voltage.close()
 
 
@@ -852,6 +896,19 @@ def get_parser():
         help="Case",
     )
 
+
+    # Convert voltage parser
+    convert_voltage_parser = subparsers.add_parser(
+        "convert-voltage", help="Convert voltage data", **kwargs
+    )
+    convert_voltage_parser.add_argument(
+        "-d", "--datadir", type=Path, help="Path to directory with mesh"
+    )
+    convert_voltage_parser.add_argument(
+        "-r", "--resultsdir", type=Path, help="Directory with results"
+    )
+
+
     return parser
 
 
@@ -893,6 +950,11 @@ def dispatch(parser, argv: Sequence[str] | None = None) -> int:
     if command == "plot-ecg":
         sex, case, args = validate_enums(**args)
         plot_ecg(sex=sex, case=case, **args)
+    if command == "convert-voltage":
+        convert_voltage(**args)
+
+
+    return 0
 
 
 def main(argv: Sequence[str] | None = None) -> int:

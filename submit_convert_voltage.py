@@ -53,6 +53,10 @@ def main():
                 print(f"Skipping {outdir.name}: not finished")
                 continue
 
+            if not (outdir / "voltage.bp").exists():
+                print(f"Skipping {outdir.name}: already submitted")
+                continue
+
             print(f"Creating movie for {outdir.name}")
             job_file = Path("tmp_job.sbatch")
             job_file.write_text(

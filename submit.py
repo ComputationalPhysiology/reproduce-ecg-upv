@@ -38,10 +38,16 @@ mv slurm-output/${{SLURM_JOBID}}-* ${{SCRATCH_DIRECTORY}}
 
 def main():
 
+    i = 0
     for sex in ["male", "female"]:
         for case in [c.name for c in Case]:
-            # outdir = Path("results") / f"{sex}-{case}"
-            # print(outdir)
+
+            outdir = Path("results") / f"{sex}-{case}"
+            print(outdir)
+            if (outdir / "ode_state.h5").exists():
+                print("Skipping")
+                continue
+
             # import shutil
             # shutil.rmtree(outdir / "v_checkpoint.bp", ignore_errors=True)
             # (outdir / "ecg.csv").unlink(missing_ok=True)
@@ -54,14 +60,16 @@ def main():
                     sex=sex, 
                     case=case,
                     ntasks=64,
-                    partition="milanq,genoaxq,defq"
+                    partition="defq,milanq,genoaxq"
                     # partition="xeongold16q"
                 )
             )
             sp.run(["sbatch", job_file.as_posix()])
-      
+            i += 1
             time.sleep(3)
             job_file.unlink()
+            if i > 6:
+                return
 
 if __name__ == "__main__":
     main()
