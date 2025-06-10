@@ -241,9 +241,9 @@ def run(
     case_ps = case_parameters(case)
 
  
-    module_path = Path("ORdmm_Land.py")
+    module_path = Path("ORdmm.py")
     if not module_path.is_file():
-        ode = gotranx.load_ode(here / "ORdmm_Land.ode")
+        ode = gotranx.load_ode(here / "ORdmm.ode")
         code = gotranx.cli.gotran2py.get_code(
             ode, scheme=[gotranx.schemes.Scheme.generalized_rush_larsen]
         )
@@ -252,28 +252,35 @@ def run(
 
     comm.barrier()
 
-    import ORdmm_Land
+    import ORdmm
 
-    model = ORdmm_Land.__dict__
+    model = ORdmm.__dict__
+
+    # In the 3D tissue we have M = 0, endo = 1, epi = 2
+    # In the cell model we have celltype: endo = 0, epi = 1, M = 2
 
     init_states = {
         0: beat.single_cell.get_steady_state(
             fun=model["generalized_rush_larsen"],
             init_states=model["init_state_values"](),
             parameters=model["init_parameter_values"](
-                celltype=0, sex=sex.value, **case_ps
+                celltype=2, sex=sex.value, **case_ps
             ),
             outdir=outdir / "steady-states-0D" / "mid",
             BCL=1000,
             nbeats=500,
-            track_indices=[model["state_index"]("v"), model["state_index"]("cai")],
+            track_indices=[
+                model["state_index"]("v"), 
+                model["state_index"]("cai"), 
+                model["state_index"]("nai"),
+            ],
             dt=0.01,
         ),
         1: beat.single_cell.get_steady_state(
             fun=model["generalized_rush_larsen"],
             init_states=model["init_state_values"](),
             parameters=model["init_parameter_values"](
-                celltype=2, sex=sex.value, **case_ps
+                celltype=0, sex=sex.value, **case_ps
             ),
             outdir=outdir / "steady-states-0D" / "endo",
             BCL=1000,
@@ -294,7 +301,11 @@ def run(
             outdir=outdir / "steady-states-0D" / "epi",
             BCL=1000,
             nbeats=500,
-            track_indices=[model["state_index"]("v"), model["state_index"]("cai")],
+            track_indices=[
+                model["state_index"]("v"), 
+                model["state_index"]("cai"), 
+                model["state_index"]("nai"),
+            ],
             dt=0.01,
         ),
     }
@@ -302,13 +313,12 @@ def run(
         return
     mesh_unit = "mm"
 
-    # endo = 0, epi = 1, M = 2
     parameters = {
         0: model["init_parameter_values"](
-            amp=0.0, celltype=0, sex=sex.value, **case_ps
+            amp=0.0, celltype=2, sex=sex.value, **case_ps
         ),
         1: model["init_parameter_values"](
-            amp=0.0, celltype=2, sex=sex.value, **case_ps
+            amp=0.0, celltype=0, sex=sex.value, **case_ps
         ),
         2: model["init_parameter_values"](
             amp=0.0, celltype=1, sex=sex.value, **case_ps

@@ -152,9 +152,9 @@ def main(sex: Sex = Sex.male, case: Case = Case.control, use_purkinje: bool = Fa
     comm = dolfin.MPI.comm_world
     data = load_data(comm)
     case_ps = case_parameters(case)
-    module_path = Path("ORdmm_Land.py")
+    module_path = Path("ORdmm.py")
     if not module_path.is_file():
-        ode = gotranx.load_ode(here / "ORdmm_Land.ode")
+        ode = gotranx.load_ode(here / "ORdmm.ode")
         code = gotranx.cli.gotran2py.get_code(
             ode, scheme=[gotranx.schemes.Scheme.forward_generalized_rush_larsen]
         )
@@ -163,9 +163,9 @@ def main(sex: Sex = Sex.male, case: Case = Case.control, use_purkinje: bool = Fa
 
     comm.barrier()
 
-    import ORdmm_Land
+    import ORdmm
 
-    model = ORdmm_Land.__dict__
+    model = ORdmm.__dict__
 
     mesh_unit = "mm"
     V = dolfin.FunctionSpace(data.mesh, "Lagrange", 1)
@@ -197,7 +197,6 @@ def main(sex: Sex = Sex.male, case: Case = Case.control, use_purkinje: bool = Fa
             track_indices=[
                 model["state_index"]("v"),
                 model["state_index"]("cai"),
-                model["state_index"]("nai"),
             ],
             dt=0.05,
         ),
