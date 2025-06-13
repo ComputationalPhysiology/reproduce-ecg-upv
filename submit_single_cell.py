@@ -29,14 +29,15 @@ mv slurm-output/${{SLURM_JOBID}}-* ${{SCRATCH_DIRECTORY}}
 def main():
 
     for sex in ["male", "female"]:
-        for case in [c.name for c in Case]:
+        # for case in [c.name for c in Case]:
+        for case in ["Quinidine_TdP", "Clozapine_TdP"]:
             job_file = Path("tmp_job.sbatch")
             job_file.write_text(
                 template.format(
                     sex=sex, 
                     case=case,
                     ntasks=1,
-                    partition="milanq"
+                    partition="defq,milanq"
                     # partition="xeongold16q"
                 )
             )

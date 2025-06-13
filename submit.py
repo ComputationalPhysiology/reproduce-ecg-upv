@@ -68,7 +68,7 @@ def main():
             i += 1
             time.sleep(3)
             job_file.unlink()
-            if i > 6:
+            if i > 20:
                 return
 
 if __name__ == "__main__":

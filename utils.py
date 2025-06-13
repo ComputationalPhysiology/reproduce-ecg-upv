@@ -38,7 +38,8 @@ class Case(IntEnum):
     Terfenadine = 26
     Vandetanib = 27
     Verapamil = 28
-
+    Quinidine_TdP = 29
+    Clozapine_TdP = 30
 
 
 def upv_path(sex: Sex, case: Case) -> Path:
