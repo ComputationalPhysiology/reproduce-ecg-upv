@@ -200,6 +200,7 @@ def run(
     sex: Sex = Sex.male,
     case: Case = Case.CTRL,
     run_only_single_cell: bool = False,
+    single_cell_outdir: Path | None = None,
 ):
     from mpi4py import MPI
     import dolfinx
@@ -259,6 +260,9 @@ def run(
     # In the 3D tissue we have M = 0, endo = 1, epi = 2
     # In the cell model we have celltype: endo = 0, epi = 1, M = 2
 
+    if single_cell_outdir is None:
+        single_cell_outdir = outdir
+
     init_states = {
         0: beat.single_cell.get_steady_state(
             fun=model["generalized_rush_larsen"],
@@ -266,7 +270,7 @@ def run(
             parameters=model["init_parameter_values"](
                 celltype=2, sex=sex.value, **case_ps
             ),
-            outdir=outdir / "steady-states-0D" / "mid",
+            outdir=single_cell_outdir / "steady-states-0D" / "mid",
             BCL=1000,
             nbeats=500,
             track_indices=[
@@ -282,7 +286,7 @@ def run(
             parameters=model["init_parameter_values"](
                 celltype=0, sex=sex.value, **case_ps
             ),
-            outdir=outdir / "steady-states-0D" / "endo",
+            outdir=single_cell_outdir / "steady-states-0D" / "endo",
             BCL=1000,
             nbeats=500,
             track_indices=[
@@ -298,7 +302,7 @@ def run(
             parameters=model["init_parameter_values"](
                 celltype=1, sex=sex.value, **case_ps
             ),
-            outdir=outdir / "steady-states-0D" / "epi",
+            outdir=single_cell_outdir / "steady-states-0D" / "epi",
             BCL=1000,
             nbeats=500,
             track_indices=[
@@ -832,6 +836,15 @@ def get_parser():
         "--run-only-single-cell",
         action="store_true",
         help="Run only the single cell simulation",
+    )
+    run_parser.add_argument(
+        "-sco", "--single-cell-outdir",
+        type=Path,
+        default=None,
+        help=(
+            "Output directory for single cell simulation. If not provided, "
+            "it use the same as outdir"
+        ),
     )
 
     # Convert parser
