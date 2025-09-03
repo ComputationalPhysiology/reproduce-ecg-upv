@@ -46,7 +46,7 @@ def main():
             if df is None:
                 continue
 
-            df.to_excel(writer, sheet_name=dir.name, index=False)
+            df.to_excel(writer, sheet_name=dir.name[:29], index=False)
             lines.append(l)
             labels.append(dir.name)
 

@@ -59,8 +59,8 @@ def main():
                 template.format(
                     sex=sex, 
                     case=case,
-                    ntasks=64,
-                    partition="defq,milanq,genoaxq"
+                    ntasks=32,
+                    partition="defq"
                     # partition="xeongold16q"
                 )
             )
@@ -68,8 +68,7 @@ def main():
             i += 1
             time.sleep(3)
             job_file.unlink()
-            if i > 20:
-                return
+      
 
 if __name__ == "__main__":
     main()
