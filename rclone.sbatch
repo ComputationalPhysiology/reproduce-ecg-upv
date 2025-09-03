@@ -24,5 +24,5 @@
 #SBATCH --output=slurm-output/%j-%x-stdout.txt
 #SBATCH --error=slurm-output/%j-%x-stderr.txt
 
-
+# rclone copy --progress /global/D1/homes/henriknf/reproduce-ecg-upv/qt_intervals gdrive:reproduce-ecg-upv/qt_intervals/
 rclone copy  --exclude "**/v_checkpoint.bp"  --progress /global/D1/homes/henriknf/reproduce-ecg-upv/results gdrive:reproduce-ecg-upv/

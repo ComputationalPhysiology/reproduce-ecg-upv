@@ -201,6 +201,7 @@ def run(
     case: Case = Case.CTRL,
     run_only_single_cell: bool = False,
     single_cell_outdir: Path | None = None,
+    case_single_cell: Case | None = None,
 ):
     from mpi4py import MPI
     import dolfinx
@@ -240,6 +241,10 @@ def run(
     save_freq = round(save_every_ms / dt)
 
     case_ps = case_parameters(case)
+    if case_single_cell is not None:
+        case_ps_single_cell = case_parameters(case_single_cell)
+    else:
+        case_ps_single_cell = case_ps
 
  
     module_path = Path("ORdmm.py")
@@ -268,7 +273,7 @@ def run(
             fun=model["generalized_rush_larsen"],
             init_states=model["init_state_values"](),
             parameters=model["init_parameter_values"](
-                celltype=2, sex=sex.value, **case_ps
+                celltype=2, sex=sex.value, **case_ps_single_cell
             ),
             outdir=single_cell_outdir / "steady-states-0D" / "mid",
             BCL=1000,
@@ -284,7 +289,7 @@ def run(
             fun=model["generalized_rush_larsen"],
             init_states=model["init_state_values"](),
             parameters=model["init_parameter_values"](
-                celltype=0, sex=sex.value, **case_ps
+                celltype=0, sex=sex.value, **case_ps_single_cell
             ),
             outdir=single_cell_outdir / "steady-states-0D" / "endo",
             BCL=1000,
@@ -300,7 +305,7 @@ def run(
             fun=model["generalized_rush_larsen"],
             init_states=model["init_state_values"](),
             parameters=model["init_parameter_values"](
-                celltype=1, sex=sex.value, **case_ps
+                celltype=1, sex=sex.value, **case_ps_single_cell
             ),
             outdir=single_cell_outdir / "steady-states-0D" / "epi",
             BCL=1000,
@@ -846,6 +851,15 @@ def get_parser():
             "it use the same as outdir"
         ),
     )
+    run_parser.add_argument(
+        "-csc", "--case-single-cell",
+        type=str,
+        default=None,
+        choices=list(Case.__members__),
+        help=(
+            "Case for single cell simulation. If not provided, it uses the same as case"
+        ),
+    )
 
     # Convert parser
     convert_parser = subparsers.add_parser(
@@ -950,7 +964,15 @@ def validate_enums(**kwargs):
         raise ValueError(f"Invalid case {case}, please choose from {Case.__members__}")
     case_ = Case[case]
 
-    return sex_, case_, kwargs
+    case_single_cell = kwargs.pop("case_single_cell", None)
+    if case_single_cell is not None:
+        if case_single_cell not in Case.__members__:
+            raise ValueError(
+                f"Invalid case {case_single_cell}, please choose from {Case.__members__}"
+            )
+        case_single_cell = Case[case_single_cell]
+
+    return sex_, case_, case_single_cell, kwargs
 
 
 def dispatch(parser, argv: Sequence[str] | None = None) -> int:
@@ -962,8 +984,8 @@ def dispatch(parser, argv: Sequence[str] | None = None) -> int:
         parser.error("Please specify a command")
 
     if command == "run":
-        sex, case, args = validate_enums(**args)
-        run(sex=sex, case=case, **args)
+        sex, case, case_single_cell, args = validate_enums(**args)
+        run(sex=sex, case=case, case_single_cell=case_single_cell, **args)
     if command == "convert":
         convert_data(**args)
     if command == "ecg":
@@ -971,7 +993,7 @@ def dispatch(parser, argv: Sequence[str] | None = None) -> int:
     if command == "viz":
         create_visualization(**args)
     if command == "plot-ecg":
-        sex, case, args = validate_enums(**args)
+        sex, case, _, args = validate_enums(**args)
         plot_ecg(sex=sex, case=case, **args)
     if command == "convert-voltage":
         convert_voltage(**args)

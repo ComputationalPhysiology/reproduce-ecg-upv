@@ -311,12 +311,16 @@ def main():
     qtdir = Path("qt_intervals")
     qtdir.mkdir(exist_ok=True)
     sexes = ["male", "female"]
-    cases = [c.name for c in Case]
+    cases = [c.name for c in Case]  
+    # cases = [c.name for c in Case if "TdP" not in c.name]  # Filter cases to only those with "TdP"
     qts = np.zeros((len(sexes), len(cases)))
     for i, sex in enumerate(sexes):
         for j, case in enumerate(cases):
 
-            outdir = Path("results") / f"{sex}-{case}"
+            if "TdP" in case:
+                outdir = Path("results") / f"{sex}-{case}-CTRL-initial-states"
+            else:
+                outdir = Path("results") / f"{sex}-{case}"
           
             if not (outdir / "ecg.csv").exists():
                 continue

@@ -59,7 +59,7 @@ def main():
                     sex=sex, 
                     case=case,
                     ntasks=1,
-                    partition="defq,milanq,genoaxq"
+                    partition="defq"
                 )
             )
             sp.run(["sbatch", job_file.as_posix()])
