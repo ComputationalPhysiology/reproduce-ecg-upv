@@ -24,13 +24,13 @@ template = dedent(
 conda activate fenicsx-v09
 
 ROOT=/global/D1/homes/${{USER}}/reproduce-ecg-upv
-SCRATCH_DIRECTORY=${{ROOT}}/results/{sex}-{case}-CTRL-initial-states
+SCRATCH_DIRECTORY=${{ROOT}}/results-profile{profile}/{sex}-{case}-CTRL-initial-states
 mkdir -p ${{SCRATCH_DIRECTORY}}
 echo "Scratch directory: ${{SCRATCH_DIRECTORY}}"
-SINGLE_CELL_OURDIR=SCRATCH_DIRECTORY=${{ROOT}}/results/{sex}-CTRL
+SINGLE_CELL_OURDIR=${{ROOT}}/results-profile{profile}/{sex}-CTRL
 
 CONDA_PREFIX=/home/henriknf/miniforge3/envs/fenicsx-v09
-$CONDA_PREFIX/bin/mpirun -n {ntasks} $CONDA_PREFIX/bin/python ${{ROOT}}/main_fenicsx.py run -d ${{ROOT}}/hex-mesh -o ${{SCRATCH_DIRECTORY}} --sex {sex} --case {case} --single-cell-outdir ${{SINGLE_CELL_OURDIR}} --case-single-cell CTRL
+$CONDA_PREFIX/bin/mpirun -n {ntasks} $CONDA_PREFIX/bin/python ${{ROOT}}/main_fenicsx.py run -d ${{ROOT}}/hex-mesh -o ${{SCRATCH_DIRECTORY}} --sex {sex} --case {case} --single-cell-outdir ${{SINGLE_CELL_OURDIR}} --case-single-cell CTRL --profile {profile}
 # Move log file to results folder
 mv slurm-output/${{SLURM_JOBID}}-* ${{SCRATCH_DIRECTORY}}
 """
@@ -43,7 +43,7 @@ def main():
     for sex in ["male", "female"]:
         for case in ["Quinidine_TdP", "Clozapine_TdP"]:
 
-            outdir = Path("results") / f"{sex}-{case}-CTRL-initial-states"
+            outdir = Path("results-profile2") / f"{sex}-{case}-CTRL-initial-states"
             print(outdir)
             if (outdir / "ode_state.h5").exists():
                 print("Skipping")
@@ -61,7 +61,8 @@ def main():
                     sex=sex, 
                     case=case,
                     ntasks=32,
-                    partition="defq"
+                    partition="defq",
+                    profile=2,
                     # partition="xeongold16q"
                 )
             )
