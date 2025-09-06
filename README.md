@@ -48,38 +48,67 @@ The simulations uses a list of activation times generated using a Purkinje netwo
 
 ## Run simulation
 
-```
-python3 main_fenicsx.py run -d hex-mesh -o results-male-control --sex male --case control
+To run a simulation you can use the following command
+
+```bash
+python3 main_fenicsx.py run -d hex-mesh -o results_profile1/male-control --sex male --case CTRL
 ```
 Note that here you might want to run the command using multiple cores, e.g (with 10 cores). 
-```
-mpirun -n 10 python3 main_fenicsx.py run -d hex-mesh -o results-male-control --sex male --case control
+```bash
+mpirun -n 10 python3 main_fenicsx.py run -d hex-mesh -o results_profile1/male-control --sex male --case CTRL
 ```
 
-To check which value corresponds to which sex you can run
+## Postprocess results
+
+There are severeal postprocessing steps that can be done.
+
+### Create movies
+To create movies from the results you can run
+```bash
+main_fenicsx.py viz -d hex-mesh -r results_profile_1/male-control 
 ```
-python3 main_fenicsx.py list-sexes
+Which will create a movie in the results folder (here `results_profile_1/male-control`).
+
+### Plotting single cell results
+
+To plot single cell results you can run
+```bash
+python3 plot_all_single_cell.py
 ```
-and to check which value corresponds to which case you can run
+(see the script for more options).
+
+### Plotting all ECG results
+To plot all ECG results you can run
+```bash
+python3 plot_all_ecg.py
 ```
-python3 main_fenicsx.py list-cases
+(see the script for more options).
+
+### Compute QT intervals
+
+To compute the QT intervals you can run
+```bash
+python3 qt_interval.py
 ```
+(see the script for more options).
+
+
 
 ## Submitting jobs to the ex3 cluster
 All results from the papers were run on the [ex3 cluster](https://www.ex3.simula.no).
 
 There are a few helper script to do this
 
-* [submit_single_cell.py](submit_single_cell.py): Script to submit single cell simulations to the cluster (these simulations are run in serial - so it might be a idea to run these first before submitting the full 3D simulations)
-* [submit.py](submit.py): Script to submit all the normal and drug jobs to the cluster
+* [submit_single_cell.py](submit_single_cell.py): Script to submit single cell simulations to the cluster (these simulations are run in serial - so it might be a idea to run these first before submitting. the full 3D simulations)
+* [submit.py](submit.py): Script to submit all the normal and drug jobs to the cluster.
 * [submit_TdP.py](submit_TdP.py): Script to submit all the TdP drug jobs to the cluster. These use initial states from the control simulations.
-* [submit_create_movie.py](submit_create_movie.py): Script to create movies from the results on the cluster
-* [submit_create_movie_TdP.py](submit_create_movie_TdP.py): Script to create movies from the TdP results on the cluster
-* [rclone.sbatch](rclone.sbatch): Script to copy results from the cluster to google drive using [rclone](https://rclone.org/)
+* [submit_create_movie.py](submit_create_movie.py): Script to create movies from the results on the cluster.
+* [submit_create_movie_TdP.py](submit_create_movie_TdP.py): Script to create movies from the TdP results on the cluster.
+* [rclone.sbatch](rclone.sbatch): Script to copy results from the cluster to google drive using [rclone](https://rclone.org/).
 
-## Postprocess results
 
-### Compute ECG
-To compute the ECG you can run
-```
-python3 main_fenicsx.py ecg -d results
+## License
+The code is licensed under the MIT license. See the [LICENSE](LICENSE) file for details
+
+## Author
+The code here is written by Henrik N. Finsberg (henriknf@simula.no)

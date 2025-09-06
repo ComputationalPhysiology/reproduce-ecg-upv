@@ -307,6 +307,7 @@ def main():
     from utils import Case
     from pathlib import Path
 
+    results_dir = Path("results_profile1")
     qt_intervals = []
     qtdir = Path("qt_intervals")
     qtdir.mkdir(exist_ok=True)
@@ -318,9 +319,9 @@ def main():
         for j, case in enumerate(cases):
 
             if "TdP" in case:
-                outdir = Path("results") / f"{sex}-{case}-CTRL-initial-states"
+                outdir = results_dir / f"{sex}-{case}-CTRL-initial-states"
             else:
-                outdir = Path("results") / f"{sex}-{case}"
+                outdir = results_dir / f"{sex}-{case}"
           
             if not (outdir / "ecg.csv").exists():
                 continue
