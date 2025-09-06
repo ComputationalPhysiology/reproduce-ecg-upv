@@ -18,7 +18,6 @@ SCRATCH_DIRECTORY=${{ROOT}}/results-profile{profile}/{sex}-{case}
 mkdir -p ${{SCRATCH_DIRECTORY}}
 echo "Scratch directory: ${{SCRATCH_DIRECTORY}}"
 
-# mpirun -n {ntasks} python3 ${{ROOT}}/main_fenicsx.py run -d ${{ROOT}}/hex-mesh -o ${{SCRATCH_DIRECTORY}} --sex {sex} --case {case} -r
 /home/henriknf/miniforge3/envs/fenicsx-upv/bin/python3 ${{ROOT}}/main_fenicsx.py run -d ${{ROOT}}/hex-mesh -o ${{SCRATCH_DIRECTORY}} --sex {sex} --case {case} -r --profile {profile}
 # Move log file to results folder
 mv slurm-output/${{SLURM_JOBID}}-* ${{SCRATCH_DIRECTORY}}

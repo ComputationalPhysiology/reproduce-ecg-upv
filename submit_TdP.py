@@ -13,14 +13,6 @@ template = dedent(
 #SBATCH --output=slurm-output/%j-%x-stdout.txt
 #SBATCH --error=slurm-output/%j-%x-stderr.txt
 
-# module use /cm/shared/spack-modules/modulefiles
-# module load spack/0.23.1
-# umask 0002
-# spack env activate fenicsx-stable-milanq-openmpi
-# module load openmpi/gcc/64/4.1.5
-# export PYTHONPATH=$(find $SPACK_ENV/.spack-env -type d -name 'site-packages' | grep venv):$PYTHONPATH
-# export OMPI_MCA_btl_openib_allow_ib=1
-
 conda activate fenicsx-v09
 
 ROOT=/global/D1/homes/${{USER}}/reproduce-ecg-upv
