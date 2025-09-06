@@ -25,7 +25,7 @@ docker pull ghcr.io/fenics/dolfinx/dolfinx:v0.9.0
 ```
 Then you can run the container using
 ```bash
-docker run --name ecg -w /home/shared -v $PWD:/home/shared -it ghcr.io/fenics/dolfinx/dolfinx:nightly
+docker run --name ecg -w /home/shared -v $PWD:/home/shared -it ghcr.io/fenics/dolfinx/dolfinx:v0.9.0
 ```
 Next you need to install the dependencies inside the container
 ```bash
@@ -105,6 +105,8 @@ There are a few helper script to do this
 * [submit_create_movie.py](submit_create_movie.py): Script to create movies from the results on the cluster.
 * [submit_create_movie_TdP.py](submit_create_movie_TdP.py): Script to create movies from the TdP results on the cluster.
 * [rclone.sbatch](rclone.sbatch): Script to copy results from the cluster to google drive using [rclone](https://rclone.org/).
+
+
 
 
 ## License
