@@ -1,0 +1,22 @@
+name: fenicsx-ecg
+channels:
+  - conda-forge
+dependencies:
+  - fenics-dolfinx==0.9.0
+  - numpy
+  - ipython
+  - python<3.13
+  - matplotlib
+  - pyvista
+  - jupyter
+  - gotranx
+  - trame
+  - ipywidgets
+  - trame-vuetify
+  - trame-vtk
+  - pip
+  - toml
+  - scifem
+  - adios4dolfinx
+  - fenicsx-ldrb
+  - fenicsx-beat

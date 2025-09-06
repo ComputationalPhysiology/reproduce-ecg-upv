@@ -13,14 +13,6 @@ template = dedent(
 #SBATCH --output=slurm-output/%j-%x-stdout.txt
 #SBATCH --error=slurm-output/%j-%x-stderr.txt
 
-# module use /cm/shared/spack-modules/modulefiles
-# module load spack/0.23.1
-# umask 0002
-# spack env activate fenicsx-stable-milanq-openmpi
-# module load openmpi/gcc/64/4.1.5
-# export PYTHONPATH=$(find $SPACK_ENV/.spack-env -type d -name 'site-packages' | grep venv):$PYTHONPATH
-# export OMPI_MCA_btl_openib_allow_ib=1
-
 conda activate fenicsx-v09
 
 ROOT=/global/D1/homes/${{USER}}/reproduce-ecg-upv
@@ -39,21 +31,16 @@ mv slurm-output/${{SLURM_JOBID}}-* ${{SCRATCH_DIRECTORY}}
 def main():
 
     i = 0
+    profile = 1
     for sex in ["male", "female"]:
-        for case in ["CTRL"]: #[c.name for c in Case]:
+        for case in [c.name for c in Case]:
 
-            outdir = Path("results-profile2") / f"{sex}-{case}"
+            outdir = Path(f"results-profile{profile}") / f"{sex}-{case}"
             print(outdir)
             if (outdir / "ode_state.h5").exists():
                 print("Skipping")
                 continue
 
-            # import shutil
-            # shutil.rmtree(outdir / "v_checkpoint.bp", ignore_errors=True)
-            # (outdir / "ecg.csv").unlink(missing_ok=True)
-            # (outdir / "log.txt").unlink(missing_ok=True)
-            # (outdir / "ode_state.h5").unlink(missing_ok=True)
-            # (outdir / "ode_state.xdmf").unlink(missing_ok=True)
             job_file = Path("tmp_job.sbatch")
             job_file.write_text(
                 template.format(
@@ -61,8 +48,7 @@ def main():
                     case=case,
                     ntasks=32,
                     partition="defq",
-                    profile=2,
-                    # partition="xeongold16q"
+                    profile=profile,
                 )
             )
             sp.run(["sbatch", job_file.as_posix()])
