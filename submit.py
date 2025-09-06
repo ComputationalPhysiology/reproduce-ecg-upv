@@ -24,12 +24,12 @@ template = dedent(
 conda activate fenicsx-v09
 
 ROOT=/global/D1/homes/${{USER}}/reproduce-ecg-upv
-SCRATCH_DIRECTORY=${{ROOT}}/results/{sex}-{case}
+SCRATCH_DIRECTORY=${{ROOT}}/results-profile{profile}/{sex}-{case}
 mkdir -p ${{SCRATCH_DIRECTORY}}
 echo "Scratch directory: ${{SCRATCH_DIRECTORY}}"
 
 CONDA_PREFIX=/home/henriknf/miniforge3/envs/fenicsx-v09
-$CONDA_PREFIX/bin/mpirun -n {ntasks} $CONDA_PREFIX/bin/python ${{ROOT}}/main_fenicsx.py run -d ${{ROOT}}/hex-mesh -o ${{SCRATCH_DIRECTORY}} --sex {sex} --case {case}
+$CONDA_PREFIX/bin/mpirun -n {ntasks} $CONDA_PREFIX/bin/python ${{ROOT}}/main_fenicsx.py run -d ${{ROOT}}/hex-mesh -o ${{SCRATCH_DIRECTORY}} --sex {sex} --case {case} --profile {profile}
 # Move log file to results folder
 mv slurm-output/${{SLURM_JOBID}}-* ${{SCRATCH_DIRECTORY}}
 """
@@ -40,9 +40,9 @@ def main():
 
     i = 0
     for sex in ["male", "female"]:
-        for case in [c.name for c in Case]:
+        for case in ["CTRL"]: #[c.name for c in Case]:
 
-            outdir = Path("results") / f"{sex}-{case}"
+            outdir = Path("results-profile2") / f"{sex}-{case}"
             print(outdir)
             if (outdir / "ode_state.h5").exists():
                 print("Skipping")
@@ -60,7 +60,8 @@ def main():
                     sex=sex, 
                     case=case,
                     ntasks=32,
-                    partition="defq"
+                    partition="defq",
+                    profile=2,
                     # partition="xeongold16q"
                 )
             )

@@ -75,7 +75,72 @@ def case_parameters(case: Case) -> dict[str, float]:
         "scale_drug_IK1": nan_or_one(factors["fIK1 "].values[0]),
     }
     return values
-  
+
+
+def profile_parameters(profile_number: int) -> dict[str, float]:
+
+    if profile_number == 1:
+        return {
+            "scale_sex_GNa_male": 1.4378,
+            "scale_sex_GNaL_male": 1.4378,
+            "scale_sex_Gtos_male": 1.3478,
+            "scale_sex_GCaL_male": 0.8462,
+            "scale_sex_GKr_male": 0.8638,
+            "scale_sex_GKs_male": 1.0578,
+            "scale_sex_GK1_male": 1.0628,
+            "scale_sex_GNCX_male": 1.0253,
+            "scale_sex_PNaK_male": 0.3018,
+            "scale_sex_GKb_male": 0.7998,
+            "scale_sex_GpCa_male": 0.9706,
+            "scale_sex_GJup_male": 0.9594,
+            "scale_sex_calm_male": 1.0496,
+            "scale_sex_GNa_female": 1.1395,
+            "scale_sex_GNaL_female": 1.1395,
+            "scale_sex_Gtos_female": 0.8499,
+            "scale_sex_GCaL_female": 1.5798,
+            "scale_sex_GKr_female": 0.9298,
+            "scale_sex_GKs_female": 0.791,
+            "scale_sex_GK1_female": 0.5367,
+            "scale_sex_GNCX_female": 0.8128,
+            "scale_sex_PNaK_female": 0.2958,
+            "scale_sex_GKb_female": 1.7695,
+            "scale_sex_GpCa_female": 1.0027,
+            "scale_sex_GJup_female": 0.9383,
+            "scale_sex_calm_female": 1.4384,
+        }
+    elif profile_number == 2:
+        return {
+            "scale_sex_GNa_male": 1.0705,
+            "scale_sex_GNaL_male": 1.0705,
+            "scale_sex_Gtos_male": 1.3165,
+            "scale_sex_GCaL_male": 1.4489,
+            "scale_sex_GKr_male": 0.9385,
+            "scale_sex_GKs_male": 0.975,
+            "scale_sex_GK1_male": 0.6759,
+            "scale_sex_GNCX_male": 0.7469,
+            "scale_sex_PNaK_male": 0.3983,
+            "scale_sex_GKb_male": 1.2688,
+            "scale_sex_GpCa_male": 1.6286,
+            "scale_sex_GJup_male": 1.5045,
+            "scale_sex_calm_male": 1.1102,
+            "scale_sex_GNa_female": 0.6591,
+            "scale_sex_GNaL_female": 0.6591,
+            "scale_sex_Gtos_female": 0.9357,
+            "scale_sex_GCaL_female": 1.3217,
+            "scale_sex_GKr_female": 0.658,
+            "scale_sex_GKs_female": 0.8026,
+            "scale_sex_GK1_female": 0.8265,
+            "scale_sex_GNCX_female": 0.5792,
+            "scale_sex_PNaK_female": 0.4249,
+            "scale_sex_GKb_female": 1.3496,
+            "scale_sex_GpCa_female": 1.3057,
+            "scale_sex_GJup_female": 1.1108,
+            "scale_sex_calm_female": 1.2349,
+        }
+
+    else:
+        raise ValueError(f"Unknown profile number: {profile_number}")
+
 
 def get_lead_positions() -> dict[str, tuple[float, float, float]]:
     def name2lead(name):

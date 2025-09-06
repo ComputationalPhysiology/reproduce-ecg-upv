@@ -14,12 +14,12 @@ template = dedent(
 #SBATCH --error=slurm-output/%j-%x-stderr.txt
 
 ROOT=/global/D1/homes/${{USER}}/reproduce-ecg-upv
-SCRATCH_DIRECTORY=${{ROOT}}/results/{sex}-{case}
+SCRATCH_DIRECTORY=${{ROOT}}/results-profile{profile}/{sex}-{case}
 mkdir -p ${{SCRATCH_DIRECTORY}}
 echo "Scratch directory: ${{SCRATCH_DIRECTORY}}"
 
 # mpirun -n {ntasks} python3 ${{ROOT}}/main_fenicsx.py run -d ${{ROOT}}/hex-mesh -o ${{SCRATCH_DIRECTORY}} --sex {sex} --case {case} -r
-/home/henriknf/miniforge3/envs/fenicsx-upv/bin/python3 ${{ROOT}}/main_fenicsx.py run -d ${{ROOT}}/hex-mesh -o ${{SCRATCH_DIRECTORY}} --sex {sex} --case {case} -r
+/home/henriknf/miniforge3/envs/fenicsx-upv/bin/python3 ${{ROOT}}/main_fenicsx.py run -d ${{ROOT}}/hex-mesh -o ${{SCRATCH_DIRECTORY}} --sex {sex} --case {case} -r --profile {profile}
 # Move log file to results folder
 mv slurm-output/${{SLURM_JOBID}}-* ${{SCRATCH_DIRECTORY}}
 """
@@ -30,14 +30,15 @@ def main():
 
     for sex in ["male", "female"]:
         # for case in [c.name for c in Case]:
-        for case in ["Quinidine_TdP", "Clozapine_TdP"]:
+        for case in ["Control", "Quinidine_TdP", "Clozapine_TdP"]:
             job_file = Path("tmp_job.sbatch")
             job_file.write_text(
                 template.format(
                     sex=sex, 
                     case=case,
                     ntasks=1,
-                    partition="defq,milanq"
+                    profile=2,
+                    partition="defq"
                     # partition="xeongold16q"
                 )
             )

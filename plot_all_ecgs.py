@@ -36,11 +36,11 @@ def plot_ecg(outdir: Path, ax1):
 def main():
 
     fig, ax = plt.subplots(2, 3, figsize=(15, 8), sharex=True)
-    all_ecg_file = Path("results") / "all_ecg.xlsx"
+    all_ecg_file = Path("results-profile2") / "all_ecg.xlsx"
     lines = []
     labels = []
     with pd.ExcelWriter(all_ecg_file) as writer:
-        for dir in Path("results").iterdir():
+        for dir in Path("results-profile2").iterdir():
 
             l, df = plot_ecg(dir, ax)
             if df is None:
@@ -52,7 +52,7 @@ def main():
 
     fig.legend(lines, labels, loc="center right")
     fig.subplots_adjust(right=0.85)
-    fig.savefig("results/all_ecg.png", dpi=500)
+    fig.savefig("results-profile2/all_ecg.png", dpi=500)
     plt.close(fig)
 
 if __name__ == "__main__":

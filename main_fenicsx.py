@@ -5,7 +5,7 @@ import argparse
 import shutil
 
 
-from utils import Sex, Case, case_parameters, get_lead_positions, upv_path
+from utils import Sex, Case, case_parameters, get_lead_positions, upv_path, profile_parameters
 
 if TYPE_CHECKING:
     import dolfinx
@@ -202,6 +202,7 @@ def run(
     run_only_single_cell: bool = False,
     single_cell_outdir: Path | None = None,
     case_single_cell: Case | None = None,
+    profile: int = 1,
 ):
     from mpi4py import MPI
     import dolfinx
@@ -245,6 +246,9 @@ def run(
         case_ps_single_cell = case_parameters(case_single_cell)
     else:
         case_ps_single_cell = case_ps
+
+    profile_ps = profile_parameters(profile)
+    case_ps.update(profile_ps)
 
  
     module_path = Path("ORdmm.py")
@@ -859,6 +863,10 @@ def get_parser():
         help=(
             "Case for single cell simulation. If not provided, it uses the same as case"
         ),
+    )
+    run_parser.add_argument(
+        "-p", "--profile", type=int, default=1, choices=[1, 2],
+        help="Profile number for individual cases"
     )
 
     # Convert parser
