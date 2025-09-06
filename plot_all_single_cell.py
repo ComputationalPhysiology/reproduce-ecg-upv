@@ -60,7 +60,7 @@ def plot_single_cell(outdir: Path, figdir: Path):
 
 def main():
 
-    outdir = Path("results") / "single_cell"
+    outdir = Path("results_profile1") / "single_cell"
     outdir.mkdir(parents=True, exist_ok=True) 
     all_v = outdir / "all_voltage.xlsx"
     all_ca = outdir / "all_calcium.xlsx"
