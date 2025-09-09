@@ -14,20 +14,10 @@ template = dedent(
 #SBATCH --output=slurm-output/%j-%x-stdout.txt
 #SBATCH --error=slurm-output/%j-%x-stderr.txt
 
-#module use /cm/shared/spack-modules/modulefiles
-#module load spack/0.23.1
-#umask 0002
-#spack env activate fenicsx-stable-milanq-openmpi
-#module load openmpi/gcc/64/4.1.5
-#export PYTHONPATH=$(find $SPACK_ENV/.spack-env -type d -name 'site-packages' | grep venv):$PYTHONPATH
-#export MCA_btl_openib_allow_ib=1
-# conda activate fenicsx-v09
-
 ROOT=/global/D1/homes/${{USER}}/reproduce-ecg-upv
-SCRATCH_DIRECTORY=${{ROOT}}/results-profile{profile}/{sex}-{case}
+SCRATCH_DIRECTORY=${{ROOT}}/results-profile{profile}/{sex}-{case}-CTRL-initial-states
 mkdir -p ${{SCRATCH_DIRECTORY}}
 echo "Scratch directory: ${{SCRATCH_DIRECTORY}}"
-
 
 /home/henriknf/miniforge3/envs/fenicsx-v09/bin/python3 ${{ROOT}}/main_fenicsx.py viz -d ${{ROOT}}/hex-mesh -r ${{SCRATCH_DIRECTORY}}
 # Move log file to results folder
@@ -40,9 +30,9 @@ def main():
 
     profile = 2
     for sex in ["male", "female"]:
-        for case in [c.name for c in Case]:
+        for case in ["Quinidine_TdP", "Clozapine_TdP"]:
 
-            outdir = Path(f"results-profile{profile}") / f"{sex}-{case}"
+            outdir = Path(f"results-profile{profile}") / f"{sex}-{case}-CTRL-initial-states"
             if (outdir / "voltage.mp4").exists():
                 print(f"Skipping {outdir.name}: already exists")
                 continue

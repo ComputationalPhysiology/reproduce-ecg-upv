@@ -307,12 +307,14 @@ def main():
     from utils import Case
     from pathlib import Path
 
-    results_dir = Path("results_profile1")
+    profile = 2
+    results_dir = Path(f"results-profile{profile}")
     qt_intervals = []
-    qtdir = Path("qt_intervals")
+    qtdir = Path(f"qt_intervals_profile{profile}")
     qtdir.mkdir(exist_ok=True)
     sexes = ["male", "female"]
-    cases = [c.name for c in Case]  
+    # cases = [c.name for c in Case]
+    cases = ["CTRL", "Quinidine_TdP", "Clozapine_TdP"]  
     # cases = [c.name for c in Case if "TdP" not in c.name]  # Filter cases to only those with "TdP"
     qts = np.zeros((len(sexes), len(cases)))
     for i, sex in enumerate(sexes):
@@ -323,6 +325,7 @@ def main():
             else:
                 outdir = results_dir / f"{sex}-{case}"
           
+            print(outdir)
             if not (outdir / "ecg.csv").exists():
                 continue
             df = pd.read_csv(outdir / "ecg.csv")
